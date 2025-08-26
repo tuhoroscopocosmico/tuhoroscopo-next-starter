@@ -1,56 +1,6 @@
-'use client'
+import Form2 from '@/components/Form2'
 
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-
-export default function RegistroPage() {
-  const router = useRouter()
-
-  // Estado unificado para el formulario
-  const [formData, setFormData] = useState({
-    nombre: '',
-    signo: '',
-    contenido: 'general',
-    codPais: '+598',
-    whatsapp: ''
-  })
-
-  const signos = [
-    'Aries','Tauro','Géminis','Cáncer','Leo','Virgo',
-    'Libra','Escorpio','Sagitario','Capricornio','Acuario','Piscis'
-  ]
-
-  // 🔹 Maneja cambios en cualquier input
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-
-    // validación: solo números en whatsapp
-    if (name === "whatsapp") {
-      const soloNumeros = value.replace(/\D/g, "")
-      setFormData(prev => ({ ...prev, whatsapp: soloNumeros }))
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }))
-    }
-  }
-
-  // 🔹 Submit
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const payload = {
-      nombre: formData.nombre,
-      signo: formData.signo,
-      contenido: formData.contenido,
-      whatsapp: `${formData.codPais}${formData.whatsapp.replace(/^0/, '')}`
-    }
-
-    // Guarda datos en sessionStorage (más seguro que query string)
-    sessionStorage.setItem("registro", JSON.stringify(payload))
-
-    // Redirige a la página de planes
-    router.push("/planes")
-  }
-
+  export default function Registro2Page() {
   return (
     <div className="container-narrow pb-16">
       <form
