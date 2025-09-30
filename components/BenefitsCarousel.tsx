@@ -24,18 +24,19 @@ const items = [
     footer: "Armonía cósmica",
     icon: <Sparkles className="w-6 h-6" />,
   },
-   {
-    title: "Horóscopos únicos y personalizados de lunes a sábado",
-    desc: "Recibí mensajes creados exclusivamente para vos, con tu nombre, tu signo y la emoción que más necesitás cada día.",
-    footer: "Lun – Sáb",
-    icon: <Star className="w-6 h-6" />,
-  },
   {
     title: "Afirmación positiva",
     desc: "Una afirmación breve y poderosa, pensada para impulsarte y alinearte con tu mejor versión.",
     footer: "Lun – Sáb",
     icon: <Sparkles className="w-6 h-6" />,
   },
+  {
+    title: "Horóscopos únicos y personalizados de lunes a sábado",
+    desc: "Recibí mensajes creados exclusivamente para vos, con tu nombre, tu signo y la emoción que más necesitás cada día.",
+    footer: "Lun – Sáb",
+    icon: <Star className="w-6 h-6" />,
+  },
+  
   {
     title: "Número y color de la suerte",
     desc: "Conocé tu número y color especial para hoy, con una explicación sencilla para potenciar tu energía.",

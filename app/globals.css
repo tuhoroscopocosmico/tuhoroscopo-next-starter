@@ -124,3 +124,29 @@ footer{ background:transparent !important; border-color:transparent !important; 
     transform: translate(-500px, -500px);
   }
 }
+
+
+/* Layout helpers */
+.container-narrow{ max-width: 720px; margin: 0 auto; padding-left: 1rem; padding-right: 1rem; }
+
+/* Tarjeta fondo cósmico */
+.bg-cosmic-surface{ background: rgba(20,16,40,.55); backdrop-filter: blur(6px); }
+
+/* Inputs & labels */
+.label{ display:block; color:rgba(255,255,255,.9); font-size:.9rem; font-weight:600; margin-top:1.25rem }
+.input{
+  width:100%; color:#fff; background:rgba(0,0,0,.2);
+  border:1px solid rgba(255,255,255,.12); border-radius:12px;
+  padding:.75rem; outline: none;
+}
+.input:focus{ border-color: rgba(250, 204, 21, .7); box-shadow: 0 0 0 3px rgba(250, 204, 21, .15); }
+
+/* Botón CTA */
+.btn{
+  width:100%; margin-top:1rem; padding:.9rem 1rem; border-radius:16px;
+  font-weight:700; color:#1a0935;
+  background: linear-gradient(90deg,#ffb74d,#ff7ab6);
+  box-shadow: 0 8px 24px rgba(255, 122, 182, .25);
+}
+.btn:disabled{ opacity:.6; cursor:not-allowed }
+

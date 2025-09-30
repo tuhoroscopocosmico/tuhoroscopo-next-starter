@@ -1,9 +1,9 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Logo() {
   return (
-    <div className="flex items-center justify-center gap-3">
-      {/* Ajusta la ruta a tu logo real */}
+    <Link href="/" className="flex items-center justify-center gap-3 hover:opacity-90 transition">
       <Image
         src="/img/logo/logo_solo.webp"
         alt="Tu Horóscopo Cósmico"
@@ -11,10 +11,21 @@ export default function Logo() {
         height={120}
         priority
       />
-      <div className="text-center">
-        <p className="uppercase tracking-widest text-sm text-fuchsia-200/80">Tu Horóscopo</p>
-        <h1 className="text-2x1 md:text-3xl font-extrabold drop-shadow-sm">CÓSMICO</h1>
-      </div>
+
+      <div className="text-center leading-tight">
+      <h1 className="text-2xl md:text-3xl font-extrabold drop-shadow-sm text-white">
+        TU HORÓSCOPO
+      </h1>
+      <span className="block text-xl md:text-2xl font-bold text-fuchsia-300 drop-shadow-sm">
+        CÓSMICO
+      </span>
     </div>
+
+
+
+
+
+
+    </Link>
   );
 }

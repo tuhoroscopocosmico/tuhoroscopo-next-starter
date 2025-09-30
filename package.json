@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.1.6",
     "iron-session": "^8.0.4",

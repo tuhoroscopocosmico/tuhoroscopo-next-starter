@@ -4,6 +4,7 @@ import Head from "next/head";
 import Link from "next/link";
 import Logo from "../components/logo";
 import LeadForm from "../components/LeadForm";
+import StickyCTA from "../components/StickyCTA";
 import BenefitsGridLite from "@/components/Benefits/BenefitsGridLite";
 
 export default function HomePage() {
@@ -49,6 +50,10 @@ export default function HomePage() {
             {/* Primer bloque */}
             <BenefitsGridLite start={0} end={6} />
 
+            {/* <BenefitsGridLite start={0} end={6} /> */}
+
+
+
             <div className="mt-10 text-center">
               <a
                 href="#form"
@@ -62,10 +67,12 @@ export default function HomePage() {
             <BenefitsGridLite start={6} end={9} />
 
           </section>
+          
 
           {/* FORM */}
           <section id="form" className="mx-auto max-w-6xl px-4 pb-16">
             <LeadForm />
+            <StickyCTA />
           </section>
         </main>
       </div>

@@ -1,27 +1,77 @@
-// /app/gracias/page.tsx  (Server Component)
-import { redirect } from "next/navigation";
+"use client";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-export default function Gracias({ searchParams }: { searchParams: { nombre?: string; tel?: string; dup?: string } }) {
-  const { nombre, tel, dup } = searchParams;
-  if(!nombre || !tel) redirect("/suscribite");
+export default function Gracias() {
+  const params = useSearchParams();
+  const [msg, setMsg] = useState("Activando tu suscripción…");
+  const [showButton, setShowButton] = useState(false);
+
+  function getId(): string | null {
+    const q = params.get("id_suscriptor");
+    if (q) return q;
+    try {
+      const raw = sessionStorage.getItem("registro");
+      if (raw) return JSON.parse(raw)?.id_suscriptor ?? null;
+    } catch {}
+    return null;
+  }
+
+  useEffect(() => {
+    let id = getId();
+    if (!id) {
+      setMsg("No encontramos tu registro. Volvé al inicio.");
+      setShowButton(false);
+      return;
+    }
+
+    let cancelled = false;
+    const start = Date.now();
+
+    async function tick() {
+      if (cancelled) return;
+      try {
+        const r = await fetch(`/api/preapproval-status?id_suscriptor=${encodeURIComponent(id!)}`, { cache: "no-store" });
+        const j = await r.json();
+        if (j?.exists && j?.init_point) {
+          window.location.href = j.init_point as string;
+          return;
+        }
+      } catch {}
+
+      if (Date.now() - start > 25000) {
+        setMsg("Pago recibido. Tocá “Continuar” para autorizar la renovación en Mercado Pago.");
+        setShowButton(true);
+        return;
+      }
+      setTimeout(tick, 1500);
+    }
+
+    tick();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
+  async function handleContinuar() {
+    const id = getId();
+    if (!id) return;
+    try {
+      const r = await fetch(`/api/preapproval-status?id_suscriptor=${encodeURIComponent(id)}`, { cache: "no-store" });
+      const j = await r.json();
+      if (j?.init_point) window.location.href = j.init_point as string;
+    } catch {}
+  }
 
   return (
-    <section className="container-narrow py-16">
-      <h1 className="h1">¡Gracias, {nombre}! 🎉</h1>
-      <p className="mt-4">Registramos tu suscripción Premium con el teléfono <strong>{tel}</strong>.</p>
-      {dup === "1" ? (
-        <p className="mt-2">Ese número ya estaba registrado. Si necesitás ayuda, escribinos.</p>
-      ) : (
-        <p className="mt-2">En breve vas a recibir un WhatsApp de bienvenida con los beneficios del plan.</p>
+    <div className="container-narrow py-16 text-center text-white">
+      <h1 className="text-2xl font-semibold mb-2">¡Pago recibido!</h1>
+      <p className="mb-6">{msg}</p>
+      {showButton && (
+        <>
+          <button className="btn-cta" onClick={handleContinuar}>Continuar</button>
+          <p className="mt-3 text-sm opacity-70">Si no te redirige solo, tocá Continuar.</p>
+        </>
       )}
-      <div className="card mt-6">
-        <h2 className="h2">Tu plan: Premium</h2>
-        <ul className="mt-3 list-disc pl-5">
-          <li>Contenido diario personalizado (lun-sáb)</li>
-          <li>Mensaje especial de domingo</li>
-          <li>Soporte prioritario por WhatsApp</li>
-        </ul>
-      </div>
-    </section>
+    </div>
   );
 }

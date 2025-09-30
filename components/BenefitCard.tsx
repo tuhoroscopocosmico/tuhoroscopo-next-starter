@@ -45,7 +45,7 @@ export default function BenefitCard({
       </div>
 
       {/* Footer */}
-      <p className="text-xs font-semibold text-pink-300 mt-3 mb-5">{footer}</p>
+      {/*<p className="text-xs font-semibold text-pink-300 mt-3 mb-5">{footer}</p>*/}
     </div>
   );
 }
