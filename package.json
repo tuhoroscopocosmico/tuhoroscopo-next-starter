@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
+    "canvas-confetti": "^1.9.3",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.1.6",
     "iron-session": "^8.0.4",
@@ -21,6 +22,7 @@
     "swiper": "^11.2.10"
   },
   "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20.11.17",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
