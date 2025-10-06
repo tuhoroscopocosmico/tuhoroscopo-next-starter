@@ -27,7 +27,10 @@ export default function GraciasContent() {
 
     async function verificar() {
       try {
+        if (!id) return; // evita hacer la request si no hay id válido
         const r = await fetch(`/api/preapproval-status?id_suscriptor=${encodeURIComponent(id)}`, { cache: "no-store" });
+
+
         const j = await r.json();
 
         if (j?.status === "authorized") {
