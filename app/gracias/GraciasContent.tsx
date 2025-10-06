@@ -7,60 +7,53 @@ import confetti from "canvas-confetti";
 export default function GraciasContent() {
   const params = useSearchParams();
 
-  function getId(): string | null {
-    const q = params.get("id_suscriptor");
-    if (q) return q;
-    try {
-      const raw = sessionStorage.getItem("registro");
-      if (raw) return JSON.parse(raw)?.id_suscriptor ?? null;
-    } catch {}
-    return null;
-  }
+  const id = params.get("id_suscriptor");
+  const preapproval_id = params.get("preapproval_id");
+  const status = params.get("status");
 
   useEffect(() => {
-    const id = getId();
-    if (!id) {
-      // 🔁 Sin registro → volver al inicio
-      window.location.href = "/";
-      return;
-    }
+    async function confirmar() {
+      if (!id || !preapproval_id || !status) {
+        window.location.href = "/";
+        return;
+      }
 
-    async function verificar() {
       try {
-        if (!id) return; // evita hacer la request si no hay id válido
-        const r = await fetch(`/api/preapproval-status?id_suscriptor=${encodeURIComponent(id)}`, { cache: "no-store" });
-
+        const r = await fetch("/api/confirmar-suscripcion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id_suscriptor: id, preapproval_id, status }),
+        });
 
         const j = await r.json();
+        if (!j.ok) throw new Error(j.error);
 
-        if (j?.status === "authorized") {
+        if (status === "authorized") {
           lanzarConfeti();
-          return;
+        } else if (status === "pending") {
+          // Redirigir directo a Mercado Pago para completar
+          const resp = await fetch(`/api/preapproval-status?id_suscriptor=${id}`, { cache: "no-store" });
+          const pj = await resp.json();
+          if (pj?.init_point) window.location.href = pj.init_point;
+        } else {
+          window.location.href = "/";
         }
-
-        if (j?.status === "pending" && j?.init_point) {
-          // 🔁 Redirigir directo a Mercado Pago
-          window.location.href = j.init_point as string;
-          return;
-        }
-
-        // 🔁 Cualquier otro caso → volver al inicio
-        window.location.href = "/";
-      } catch {
+      } catch (err) {
+        console.error(err);
         window.location.href = "/";
       }
     }
 
-    verificar();
-  }, []);
+    confirmar();
+  }, [id, preapproval_id, status]);
 
   function lanzarConfeti() {
     const duration = 3 * 1000;
     const end = Date.now() + duration;
 
     const frame = () => {
-      confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 } });
-      confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 } });
+      confetti({ particleCount: 7, angle: 60, spread: 70, origin: { x: 0 } });
+      confetti({ particleCount: 7, angle: 120, spread: 70, origin: { x: 1 } });
       if (Date.now() < end) requestAnimationFrame(frame);
     };
 
@@ -68,13 +61,9 @@ export default function GraciasContent() {
   }
 
   return (
-    <div className="container-narrow py-20 text-center text-white relative z-10">
-      <h1 className="text-3xl md:text-4xl font-extrabold mb-4 drop-shadow-[0_0_12px_#f0b6ff]">
-        ✨ ¡Tu suscripción Premium fue activada! ✨
-      </h1>
-      <p className="text-white/80 mb-6 animate-pulse">
-        En minutos recibirás tu primer mensaje en WhatsApp 🌙
-      </p>
+    <div className="container-narrow text-center py-16 text-white">
+      <h1 className="text-3xl font-bold mb-3">🎉 ¡Suscripción confirmada!</h1>
+      <p>Gracias por activar tu plan Premium. Pronto recibirás tus mensajes cósmicos ✨</p>
     </div>
   );
 }
