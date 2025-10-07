@@ -77,7 +77,7 @@ export default function GraciasContent() {
             return;
           } else {
             console.error("❌ Error activando premium:", data);
-            window.location.href = "/";
+            //window.location.href = "/";
             return;
           }
         }
@@ -101,7 +101,7 @@ export default function GraciasContent() {
         window.location.href = "/";
       } catch (e) {
         console.error("💥 Error procesando backurl:", e);
-        window.location.href = "/";
+        //window.location.href = "/";
       }
     }
 
