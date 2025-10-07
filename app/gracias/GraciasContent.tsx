@@ -1,148 +1,283 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
 
+type AnyDict = Record<string, any>;
+
 export default function GraciasContent() {
-  const params = useSearchParams();
+  const sp = useSearchParams();
 
-  // ✅ Obtener TODOS los parámetros recibidos
-  const id = params.get("id_suscriptor");
-  const preapproval_id = params.get("preapproval_id");
-  const status = params.get("status");
-  const payer_email = params.get("payer_email");
-  const external_reference = params.get("external_reference");
+  // ─────────────────────────────────────────────────────────────
+  // 1) Captura cruda de TODO lo que venga por querystring
+  // ─────────────────────────────────────────────────────────────
+  const allParams = useMemo(() => {
+    const obj: AnyDict = {};
+    try {
+      for (const [k, v] of Array.from(sp.entries())) {
+        // si un parámetro viene duplicado, lo guardamos como array
+        if (obj[k] === undefined) obj[k] = v;
+        else obj[k] = Array.isArray(obj[k]) ? [...obj[k], v] : [obj[k], v];
+      }
+    } catch (_) {}
+    return obj;
+  }, [sp]);
 
-  // 🧾 Armar un objeto con todos los datos recibidos para log
-  const backParams = {
-    id_suscriptor: id,
-    preapproval_id,
-    status,
-    payer_email,
-    external_reference,
-    timestamp: new Date().toISOString(),
+  // 2) Campos “clásicos” (puede que alguno no venga)
+  const id = (allParams.id_suscriptor ?? allParams.id ?? "") as string;
+  const preapproval_id = (allParams.preapproval_id ?? allParams.preapproval ?? "") as string;
+  const status = (allParams.status ?? allParams.collection_status ?? "") as string;
+  const payer_email = (allParams.payer_email ?? allParams.email ?? "") as string;
+  const external_reference = (allParams.external_reference ?? "") as string;
+
+  // 3) Datos extra del entorno/URL para diagnóstico
+  const envSnapshot = useMemo(
+    () => ({
+      href: typeof window !== "undefined" ? window.location.href : "",
+      referrer: typeof document !== "undefined" ? document.referrer : "",
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+      timestamp: new Date().toISOString(),
+    }),
+    []
+  );
+
+  // Panel de estado/errores y timeline
+  const [uiStatus, setUiStatus] = useState<"idle" | "ok" | "warn" | "error">("idle");
+  const [uiTitle, setUiTitle] = useState<string>("Analizando respuesta de Mercado Pago…");
+  const [logs, setLogs] = useState<Array<{ step: string; data?: AnyDict; level?: "info" | "warn" | "error" }>>([]);
+
+  const pushLog = (step: string, data?: AnyDict, level: "info" | "warn" | "error" = "info") =>
+    setLogs((p) => [...p, { step, data, level }]);
+
+  // Report consolidado para copiar
+  const report: AnyDict = {
+    message: "BackURL recibido en /gracias-premium (no hay redirecciones activas)",
+    params_crudos: allParams,
+    campos: { id_suscriptor: id, preapproval_id, status, payer_email, external_reference },
+    entorno: envSnapshot,
+    timeline: logs,
   };
 
   useEffect(() => {
     async function procesarBackUrl() {
-      // 1️⃣ Validar presencia de datos mínimos
+      // 0) log de entrada
+      pushLog("INICIO", { ...report });
+
+      // 1) Validación mínima (no redirige; sólo muestra)
       if (!id || !preapproval_id) {
-        console.warn("⚠️ Falta id o preapproval_id, redirigiendo al inicio");
-        window.location.href = "/";
+        const detail = { motivo: "Falta id_suscriptor o preapproval_id", id, preapproval_id };
+        pushLog("VALIDACION_MINIMA_FALLA", detail, "warn");
+        setUiStatus("warn");
+        setUiTitle("⚠️ Faltan parámetros mínimos (id_suscriptor o preapproval_id).");
+        // window.location.href = "/"; // ← redirección deshabilitada
         return;
       }
 
+      // 2) Enviar log al servidor (si existe /api/log-backurl) para que quede en Vercel
       try {
-        // 2️⃣ Registrar los parámetros recibidos para trazabilidad
-        await fetch("/api/log-backurl", {
+        const body = {
+          tipo: "BACKURL_MP",
+          ...report,
+        };
+        const res = await fetch("/api/log-backurl", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(backParams),
+          body: JSON.stringify(body),
         });
+        pushLog("LOG_BACKURL_POST", { ok: res.ok, status: res.status });
+      } catch (e: any) {
+        pushLog("LOG_BACKURL_POST_ERROR", { error: String(e) }, "warn");
+      }
 
-        // 3️⃣ Normalizar estado recibido desde Mercado Pago
-        const statusNorm = (status || "").toLowerCase().trim();
+      // 3) Normalizar status
+      const statusNorm = String(status || "").toLowerCase().trim();
+      pushLog("STATUS_NORMALIZADO", { status_raw: status, statusNorm });
 
-        // Consideramos válidos estos estados (dependen del tipo de tarjeta)
-        const positivos = [
-          "authorized",
-          "approved",
-          "success",
-          "complete",
-          "finished",
-          "active", // algunos retornan así
-        ];
-
-        const esPositivo = positivos.includes(statusNorm);
-
-        // 4️⃣ Si MP no mandó estado pero tenemos los IDs → igual activamos
-        if (esPositivo || !statusNorm) {
-          console.log("🚀 Activando Premium provisorio:", { id, preapproval_id, status });
-
-          const res = await fetch("/api/activar-premium-provisorio", {
+      // Estados “positivos” conocidos en distintos flujos
+      const positivos = ["authorized", "approved", "success", "complete", "finished", "active"];
+      const esPositivo = positivos.includes(statusNorm) || statusNorm === "";
+      if (esPositivo) {
+        // Intento activar premium provisorio (NO redirige, sólo muestra resultado)
+        try {
+          pushLog("ACTIVAR_PREMIUM_PROVISORIO_TRY", { id, preapproval_id });
+          const r = await fetch("/api/activar-premium-provisorio", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               id_suscriptor: id,
               preapproval_id,
-              backParams,
+              backParams: { ...allParams, ...envSnapshot },
             }),
           });
-
-          const data = await res.json();
-          if (data.ok) {
-            console.log("✅ Premium provisorio activado correctamente");
+          const j = await r.json().catch(() => ({}));
+          pushLog("ACTIVAR_PREMIUM_PROVISORIO_RESP", { http: r.status, json: j });
+          if (r.ok && j?.ok) {
+            setUiStatus("ok");
+            setUiTitle("✅ Premium provisorio activado (sin redirección).");
             lanzarConfeti();
-            return;
           } else {
-            console.error("❌ Error activando premium:", data);
-            //window.location.href = "/";
-            return;
+            setUiStatus("warn");
+            setUiTitle("⚠️ No se pudo activar premium provisorio (revisar respuesta).");
           }
+        } catch (e: any) {
+          pushLog("ACTIVAR_PREMIUM_PROVISORIO_ERROR", { error: String(e) }, "error");
+          setUiStatus("error");
+          setUiTitle("❌ Error activando premium provisorio.");
         }
+        // return; // ← si querés cortar acá, dejá el return. Lo dejo comentado para seguir recolectando data.
+      }
 
-        // 5️⃣ Si está pendiente → redirigimos nuevamente a Mercado Pago
-        if (statusNorm === "pending" || statusNorm === "in_process") {
-          console.log("⏳ Suscripción pendiente, redirigiendo a Mercado Pago…");
-          const r = await fetch(
-            `/api/preapproval-status?id_suscriptor=${encodeURIComponent(id)}`,
-            { cache: "no-store" }
-          );
-          const j = await r.json();
-          if (j?.init_point) {
-            window.location.href = j.init_point;
-            return;
-          }
+      // 4) Si el estado parece “pendiente”, consultamos a nuestra API el init_point
+      if (statusNorm === "pending" || statusNorm === "in_process") {
+        try {
+          pushLog("PENDIENTE_CHECK_PREAPPROVAL_STATUS_TRY", { id });
+          const r = await fetch(`/api/preapproval-status?id_suscriptor=${encodeURIComponent(id)}`, {
+            cache: "no-store",
+          });
+          const j = await r.json().catch(() => ({}));
+          pushLog("PENDIENTE_CHECK_PREAPPROVAL_STATUS_RESP", { http: r.status, json: j });
+          // if (j?.init_point) window.location.href = j.init_point; // ← deshabilitado
+          setUiStatus("warn");
+          setUiTitle("⏳ Suscripción pendiente. Se consultó /preapproval-status (sin redirigir).");
+        } catch (e: any) {
+          pushLog("PENDIENTE_CHECK_PREAPPROVAL_STATUS_ERROR", { error: String(e) }, "error");
+          setUiStatus("error");
+          setUiTitle("❌ Error consultando estado de preapproval.");
         }
+      }
 
-        // 6️⃣ Cualquier otro caso → volver al inicio
-        console.warn("⚠️ Estado no reconocido:", statusNorm);
-        window.location.href = "/";
-      } catch (e) {
-        console.error("💥 Error procesando backurl:", e);
-        //window.location.href = "/";
+      // 5) Si llega un estado desconocido, lo dejamos visible
+      if (!esPositivo && statusNorm && statusNorm !== "pending" && statusNorm !== "in_process") {
+        pushLog("ESTADO_NO_RECONOCIDO", { statusNorm }, "warn");
+        setUiStatus("warn");
+        setUiTitle(`⚠️ Estado no reconocido por el cliente: "${statusNorm}" (no se redirige).`);
+        // window.location.href = "/"; // ← deshabilitado
       }
     }
 
     procesarBackUrl();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // 🎊 Animación de confeti cósmico
+  // ─────────────────────────────────────────────────────────────
+  // UI helpers
+  // ─────────────────────────────────────────────────────────────
   function lanzarConfeti() {
-    const duration = 4000;
+    const duration = 3000;
     const end = Date.now() + duration;
-
     (function frame() {
-      confetti({
-        particleCount: 8,
-        angle: 60,
-        spread: 80,
-        origin: { x: 0 },
-        colors: ["#f0b6ff", "#ffe29f", "#a0c4ff"],
-      });
-      confetti({
-        particleCount: 8,
-        angle: 120,
-        spread: 80,
-        origin: { x: 1 },
-        colors: ["#f0b6ff", "#ffe29f", "#a0c4ff"],
-      });
+      confetti({ particleCount: 8, angle: 60, spread: 80, origin: { x: 0 } });
+      confetti({ particleCount: 8, angle: 120, spread: 80, origin: { x: 1 } });
       if (Date.now() < end) requestAnimationFrame(frame);
     })();
   }
 
+  async function copiarReporte() {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+      pushLog("CLIPBOARD_OK");
+    } catch (e: any) {
+      pushLog("CLIPBOARD_ERROR", { error: String(e) }, "warn");
+    }
+  }
+
+  // Paleta de estilos rápidos (Tailwind-friendly; adaptá a tu setup)
+  const tone =
+    uiStatus === "ok"
+      ? "bg-emerald-950/40 border-emerald-500 text-emerald-100"
+      : uiStatus === "warn"
+      ? "bg-amber-950/40 border-amber-400 text-amber-100"
+      : uiStatus === "error"
+      ? "bg-rose-950/40 border-rose-500 text-rose-100"
+      : "bg-slate-900/60 border-slate-600 text-slate-100";
+
   return (
-    <div className="container-narrow text-center py-24 text-white">
-      <h1 className="text-4xl md:text-5xl font-extrabold mb-4 drop-shadow-[0_0_16px_#f0b6ff] animate-pulse">
-        🌟 ¡Tu suscripción Premium fue activada! 🌟
-      </h1>
-      <p className="text-white/80 text-lg mb-6">
-        En minutos recibirás tus mensajes cósmicos diarios por WhatsApp ✨
-      </p>
-      <p className="text-sm opacity-60">
-        Si ya ves esta pantalla, no hagas nada más — tu energía quedó alineada con el universo 🌙
-      </p>
+    <div className="mx-auto max-w-3xl p-4 space-y-6">
+      {/* Banner de estado visible */}
+      <div className={`rounded-xl border p-4 ${tone}`}>
+        <h1 className="text-xl font-bold mb-1">
+          {uiTitle || "Analizando respuesta de Mercado Pago…"}
+        </h1>
+        <p className="opacity-80 text-sm">
+          Esta pantalla está en <strong>modo diagnóstico</strong>. No hay redirecciones activas; todo lo recibido
+          se muestra abajo y también se intenta registrar un log en el servidor.
+        </p>
+      </div>
+
+      {/* Botón copiar todo */}
+      <div className="flex gap-2">
+        <button
+          onClick={copiarReporte}
+          className="rounded-md border px-3 py-1 text-sm hover:bg-white/10"
+          title="Copia todo el reporte en el portapapeles"
+        >
+          Copiar reporte JSON
+        </button>
+      </div>
+
+      {/* Sección: campos clásicos */}
+      <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+        <h2 className="font-semibold mb-2">Campos principales</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-sm">
+          <div><span className="opacity-70">id_suscriptor:</span> <code>{String(id || "—")}</code></div>
+          <div><span className="opacity-70">preapproval_id:</span> <code>{String(preapproval_id || "—")}</code></div>
+          <div><span className="opacity-70">status:</span> <code>{String(status || "—")}</code></div>
+          <div><span className="opacity-70">payer_email:</span> <code>{String(payer_email || "—")}</code></div>
+          <div className="md:col-span-2"><span className="opacity-70">external_reference:</span> <code>{String(external_reference || "—")}</code></div>
+        </div>
+      </section>
+
+      {/* Sección: parámetros crudos */}
+      <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+        <h2 className="font-semibold mb-2">Parámetros crudos (querystring)</h2>
+        <pre className="text-xs whitespace-pre-wrap break-words">
+          {JSON.stringify(allParams, null, 2)}
+        </pre>
+      </section>
+
+      {/* Sección: entorno */}
+      <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+        <h2 className="font-semibold mb-2">Entorno/URL</h2>
+        <pre className="text-xs whitespace-pre-wrap break-words">
+          {JSON.stringify(envSnapshot, null, 2)}
+        </pre>
+      </section>
+
+      {/* Sección: timeline / acciones realizadas */}
+      <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+        <h2 className="font-semibold mb-2">Acciones y logs (timeline)</h2>
+        {logs.length === 0 ? (
+          <p className="text-sm opacity-70">Sin registros aún…</p>
+        ) : (
+          <ul className="space-y-2 text-xs">
+            {logs.map((l, i) => (
+              <li
+                key={i}
+                className={`rounded-md border p-2 ${
+                  l.level === "error"
+                    ? "border-rose-500/60 bg-rose-950/30"
+                    : l.level === "warn"
+                    ? "border-amber-400/60 bg-amber-950/30"
+                    : "border-slate-600/60 bg-slate-950/30"
+                }`}
+              >
+                <div className="font-mono text-[11px] opacity-80">{l.step}</div>
+                {l.data && (
+                  <pre className="mt-1 whitespace-pre-wrap break-words">
+                    {JSON.stringify(l.data, null, 2)}
+                  </pre>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <footer className="opacity-60 text-xs">
+        Modo diagnóstico activo: <strong>sin redirecciones</strong>. Descomentar en el código si
+        querés volver a habilitarlas.
+      </footer>
     </div>
   );
 }
