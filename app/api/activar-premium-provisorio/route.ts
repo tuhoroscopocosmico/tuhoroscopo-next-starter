@@ -4,8 +4,6 @@ import { NextResponse } from "next/server";
 
 /**
  * Calcula la fecha de vencimiento añadiendo un mes exacto a la fecha de inicio.
- * @param startDate - La fecha actual de inicio.
- * @returns La fecha de vencimiento en formato ISO string.
  */
 const getFechaVencimientoMensual = (startDate: Date): string => {
   const nextMonth = new Date(startDate);
@@ -34,26 +32,27 @@ async function logFunction(supabaseUrl: string, serviceKey: string, logData: any
   }
 }
 
-// === API ROUTE PRINCIPAL ===
+// === API ROUTE PRINCIPAL (LÓGICA CORREGIDA) ===
 
 export async function POST(req: Request) {
   const currentTimestamp = new Date();
-  const logDetails = { creado_por: "backurl" };
+  const logDetails = { creado_por: "backurl-provisional" }; // Log con nuevo nombre
 
-  // 1. EXTRAER y VALIDAR Parámetros de Entrada
+  // 1. EXTRAER y VALIDAR Parámetros de Entrada (CORREGIDO)
   try {
-    // Se espera que el Frontend envíe el collection_status leído del BackURL de MP.
-    const { id_suscriptor, preapproval_id, collection_status } = await req.json();
+    // CORRECCIÓN: Solo leemos los campos que el frontend SÍ envía
+    const { id_suscriptor, preapproval_id } = await req.json();
 
-    if (!id_suscriptor || !preapproval_id || !collection_status) {
+    // CORRECCIÓN: Validamos solo esos dos campos
+    if (!id_suscriptor || !preapproval_id) {
       await logFunction(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-          nombre_funcion: "backurl-mp",
+          nombre_funcion: "backurl-provisional",
           resultado: "ERROR_PARAMS",
-          detalle: { error: "Faltan parámetros requeridos", campos_recibidos: { id_suscriptor, preapproval_id, collection_status } },
+          detalle: { error: "Faltan id_suscriptor o preapproval_id", campos_recibidos: { id_suscriptor, preapproval_id } },
           exito: false, ...logDetails
       });
       return NextResponse.json(
-        { ok: false, error: "Faltan id_suscriptor, preapproval_id o collection_status" },
+        { ok: false, error: "Faltan id_suscriptor o preapproval_id" },
         { status: 400 }
       );
     }
@@ -70,27 +69,20 @@ export async function POST(req: Request) {
     
     const supabaseUrl = NEXT_PUBLIC_SUPABASE_URL;
     const serviceKey = SUPABASE_SERVICE_ROLE_KEY;
-    const isApproved = collection_status === 'approved';
-
-    // 3. Definir Cuerpo de Actualización Condicional (LÓGICA CORREGIDA)
     
-    // Estados básicos
+    // 3. Definir Cuerpo de Actualización (LÓGICA CORREGIDA: Siempre provisional)
+    // Esta función solo da acceso inmediato. El webhook confirmará.
     const updateBody: Record<string, any> = {
-      // Si fue aprobado, el estado es 'activa', sino 'pendiente_pago' (o 'rechazada').
-      estado_suscripcion: isApproved ? "activa" : "pendiente_pago", 
-      premium_activo: isApproved, // Solo dar acceso si fue aprobado.
-      premium_pendiente_confirmacion: !isApproved, // Si no está aprobado, está pendiente.
+      estado_suscripcion: "activa_provisional",
+      premium_activo: true, // ¡Le damos acceso ya!
+      premium_pendiente_confirmacion: true, // Queda pendiente hasta el webhook
       preapproval_id,
-      preapproval_status: isApproved ? "authorized" : "pending", 
+      preapproval_status: "authorized", // Asumimos autorizado porque MP lo redirigió
       preapproval_actualizado_en: currentTimestamp.toISOString(),
-      auto_renovacion_activa: isApproved, 
+      auto_renovacion_activa: true, 
+      fecha_inicio_premium: currentTimestamp.toISOString(), // Seteamos fechas provisorias
+      fecha_vencimiento_premium: getFechaVencimientoMensual(currentTimestamp),
     };
-    
-    // Si fue aprobado, se establecen las fechas Premium
-    if (isApproved) {
-        updateBody.fecha_inicio_premium = currentTimestamp.toISOString();
-        updateBody.fecha_vencimiento_premium = getFechaVencimientoMensual(currentTimestamp);
-    }
 
     // 4. Ejecutar PATCH en Supabase
     const r = await fetch(
@@ -110,12 +102,11 @@ export async function POST(req: Request) {
     // 5. Manejo de error de Supabase
     if (!r.ok) {
       const err = await r.text();
-      console.error("❌ Error actualizando suscriptor en Supabase:", err);
-      // Registrar error
+      console.error("❌ Error actualizando suscriptor en Supabase (Provisional):", err);
       await logFunction(supabaseUrl, serviceKey, {
-        nombre_funcion: "backurl-mp-final",
+        nombre_funcion: "backurl-provisional",
         resultado: "ERROR_DB",
-        detalle: { id_suscriptor, preapproval_id, status: collection_status, error: err },
+        detalle: { id_suscriptor, preapproval_id, error: err },
         exito: false, ...logDetails
       });
       return NextResponse.json({ ok: false, error: "Error en Supabase" }, { status: 500 });
@@ -125,16 +116,15 @@ export async function POST(req: Request) {
 
     // 6. Registrar log de función exitoso
     await logFunction(supabaseUrl, serviceKey, {
-      nombre_funcion: "backurl-mp-final",
-      resultado: isApproved ? "OK_ACTIVACION_FINAL" : "OK_PENDIENTE",
-      detalle: { id_suscriptor, preapproval_id, status: collection_status, estado_final: updateBody.estado_suscripcion },
+      nombre_funcion: "backurl-provisional",
+      resultado: "OK_ACTIVACION_PROVISIONAL",
+      detalle: { id_suscriptor, preapproval_id, estado_final: updateBody.estado_suscripcion },
       exito: true, ...logDetails
     });
 
     return NextResponse.json({ ok: true, data });
   } catch (e) {
-    console.error("❌ Error en la ruta backurl-mp-final:", e);
-    // Asumimos que si falla aquí, el log no se pudo enviar
+    console.error("❌ Error en la ruta backurl-provisional:", e);
     return NextResponse.json({ ok: false, error: "Error interno del servidor" }, { status: 500 });
   }
 }
