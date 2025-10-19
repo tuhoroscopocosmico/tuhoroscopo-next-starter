@@ -24,12 +24,11 @@ export default function LeadForm({ initial }: Props) {
   const [whatsapp, setWhatsapp] = useState('')
   const [acepta, setAcepta] = useState(false)
 
-  // Prefill (sin cambios)
+  // ... (hooks useEffect y función normalizarUY sin cambios) ...
   useEffect(() => { if (initial?.nombre) setNombre(initial.nombre); if (initial?.signo) setSigno(initial.signo); if (initial?.preferencia) setPref(initial.preferencia); if (initial?.whatsappLocal) { setWhatsapp(initial.whatsappLocal); } else if (initial?.whatsapp) { const solo = initial.whatsapp.replace(/[^\d]/g, ''); setWhatsapp(solo.startsWith('598') ? `0${solo.slice(3)}` : solo); } }, [initial])
-  // from planes (sin cambios)
   useEffect(() => { if (params.get('from') === 'planes') setAcepta(true); }, [params])
-
   function normalizarUY(num: string) { const solo = num.replace(/[^\d]/g, ''); const sin0 = solo.replace(/^0/, ''); return { telefono: sin0, whatsapp: `+598${sin0}` } }
+
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -60,25 +59,29 @@ export default function LeadForm({ initial }: Props) {
         acepto_politicas: acepta
       }
 
-      // 🔄 Validación Sincrónica
-      // ===========================================
-      // === CORRECCIÓN DE RUTA DE FETCH ===
-      // ===========================================
-      const res = await fetch('/api/alta-suscriptor', { // <-- RUTA CORREGIDA
+      // 🔄 Validación Sincrónica (llamada a API)
+      const res = await fetch('/api/alta-suscriptor', { // Ruta corregida
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+
+      // ===========================================
+      // === CORRECCIÓN DE MANEJO DE ERRORES ===
       // ===========================================
 
-      const data = await res.json().catch(() => ({}));
-
+      // 1. Verificar si la respuesta NO fue OK (ej. 400, 409, 500)
       if (!res.ok) {
-        console.error('Error en /api/alta-suscriptor:', data);
-        setError(data.mensaje || 'Error al registrar el suscriptor.');
+        // Intentamos leer el JSON de error que *debería* enviar nuestra API
+        const errorData = await res.json().catch(() => ({}));
+        console.error('Error en /api/alta-suscriptor:', errorData);
+        setError(errorData.mensaje || `Error ${res.status}: Ocurrió un problema.`);
         setLoading(false);
-        return;
+        return; // No redirigimos
       }
+
+      // 2. Si la respuesta SÍ fue OK, leemos el JSON
+      const data = await res.json();
       
       const id_suscriptor = data.id_suscriptor;
       if (!id_suscriptor) {
@@ -87,8 +90,9 @@ export default function LeadForm({ initial }: Props) {
          setLoading(false);
          return;
       }
+      // ===========================================
 
-      // Guardar en sessionStorage
+      // 👉 Guardamos todo en sessionStorage ANTES de redirigir
       sessionStorage.setItem('registro', JSON.stringify({
         ...payload,
         whatsappLocal: `0${telefono}`,
@@ -97,12 +101,18 @@ export default function LeadForm({ initial }: Props) {
         mensaje: data.mensaje,
       }));
 
-      // Redirigir a planes
+      // 🚀 Redirigir a planes
       router.push('/planes');
 
     } catch (err) {
+      // Este catch captura errores de red o errores de sintaxis si algo falla
       console.error(err)
-      setError('Ocurrió un error de red. Probá de nuevo.')
+      // Si el error es el que vimos (porque res.json() falló en un 500)
+      if (err instanceof SyntaxError) {
+        setError('Error inesperado del servidor. No se pudo leer la respuesta.');
+      } else {
+        setError('Ocurrió un error de red. Probá de nuevo.')
+      }
       setLoading(false)
     } 
   }
