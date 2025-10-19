@@ -1,4 +1,4 @@
-//components/LeadForms.tsx
+// components/LeadForms.tsx
 'use client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FormEvent, useEffect, useState } from 'react'
@@ -48,8 +48,6 @@ export default function LeadForm({ initial }: Props) {
     if (initial?.nombre) setNombre(initial.nombre)
     if (initial?.signo) setSigno(initial.signo)
     if (initial?.preferencia) setPref(initial.preferencia)
-
-    // 👇 usamos whatsappLocal si está guardado (con 0 adelante)
     if (initial?.whatsappLocal) {
       setWhatsapp(initial.whatsappLocal)
     } else if (initial?.whatsapp) {
@@ -77,8 +75,6 @@ export default function LeadForm({ initial }: Props) {
     if (!nombre || !signo || !whatsapp) { setError('Completá todos los campos.'); return }
 
     const telSolo = whatsapp.replace(/[^\d]/g, '')
-
-    // 📌 Validar: empieza con 09 y tiene exactamente 9 dígitos
     if (!/^09\d{7}$/.test(telSolo)) {
       setError('El número debe comenzar con 09 y tener 9 dígitos (ej: 099123456).')
       return
@@ -98,55 +94,54 @@ export default function LeadForm({ initial }: Props) {
         pais: 'UY',
         fuente: 'web-vercel',
         version_politica: 'v1.0',
+        acepto_politicas: acepta // <-- MODIFICACIÓN AÑADIDA
       }
 
       // 👉 Guardamos algo inicial (con whatsappLocal también)
       sessionStorage.setItem('registro', JSON.stringify({
         nombre: payload.nombre,
         whatsapp: payload.whatsapp,
-        whatsappLocal: `0${telefono}`, // 👈 agregado
+        whatsappLocal: `0${telefono}`,
         signo: payload.signo,
         contenido_preferido: payload.contenido_preferido,
       }))
 
-      // 🚀 Redirigir enseguida (NO esperamos respuesta)
+      // 🚀 Redirigir enseguida
       router.push('/planes')
 
       // 🔄 Validación en paralelo
       fetch('/alta-suscriptor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload), // <-- Ahora payload incluye acepto_politicas
       })
         .then(async res => {
           const data = await res.json().catch(() => ({}))
-
-          if (data.resultado && data.resultado !== 'ok') {
-            sessionStorage.setItem('registro', JSON.stringify({
-              ...payload,
-              whatsappLocal: `0${telefono}`, // 👈 siempre guardamos con 0
-              id_suscriptor: data.id_suscriptor || null,
-              resultado: data.resultado,
-              mensaje: data.mensaje,
-            }))
-          } else {
-            sessionStorage.setItem('registro', JSON.stringify({
-              ...payload,
-              whatsappLocal: `0${telefono}`, // 👈 siempre guardamos con 0
-              id_suscriptor: data.id_suscriptor || null,
-            }))
-          }
+          // Actualizamos sessionStorage con la respuesta del backend
+          sessionStorage.setItem('registro', JSON.stringify({
+            ...payload, // Guardamos todo lo enviado
+            whatsappLocal: `0${telefono}`,
+            id_suscriptor: data.id_suscriptor || null, // ID devuelto por el backend
+            resultado: data.resultado || null,
+            mensaje: data.mensaje || null,
+          }))
         })
         .catch(err => {
           console.error('Error validando en segundo plano:', err)
+          // Opcional: Podrías guardar el error en sessionStorage también
+          sessionStorage.setItem('registro', JSON.stringify({
+            ...payload,
+            whatsappLocal: `0${telefono}`,
+            error_backend: err.message || 'Error desconocido'
+          }))
         })
 
     } catch (err) {
       console.error(err)
       setError('Ocurrió un error. Probá de nuevo.')
-    } finally {
-      setLoading(false)
+      setLoading(false) // Asegurarse de quitar loading si hay error aquí
     }
+    // No ponemos setLoading(false) aquí porque ya redirigimos
   }
 
   return (
@@ -159,7 +154,7 @@ export default function LeadForm({ initial }: Props) {
         Empezá tu experiencia premium
       </h2>
 
-
+      {/* Inputs para nombre, signo, preferencia */}
       <label className="block text-sm text-white/80 mb-1">Nombre</label>
       <input
         className="mb-4 w-full rounded-xl bg-white/8 px-4 py-3 ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-pink-300"
@@ -194,10 +189,9 @@ export default function LeadForm({ initial }: Props) {
         {preferencias.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
       </select>
 
+      {/* Input WhatsApp */}
       <label className="block text-sm text-white/80 mb-1">Número de WhatsApp (celular) </label>
-
       <div className="flex gap-2 items-center">
-        {/* Bloque bandera + prefijo */}
         <div className="flex items-center gap-2 rounded-xl bg-white/8 px-3 ring-1 ring-white/15 h-[52px]">
           <ReactCountryFlag
             countryCode="UY"
@@ -208,8 +202,6 @@ export default function LeadForm({ initial }: Props) {
           />
           <span className="text-white/70 font-medium tracking-wide">+598</span>
         </div>
-
-        {/* Input WHATSAPP INPUT --- - -- - -- - - - -- - - -- - -*/}
         <input
           className="flex-1 rounded-xl bg-white/8 px-4 py-3 h-[52px] ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-pink-300 placeholder:text-white/40"
           placeholder="099123456"
@@ -218,9 +210,9 @@ export default function LeadForm({ initial }: Props) {
           onChange={(e) => setWhatsapp(e.target.value.replace(/[^\d]/g, ''))}
           required
         />
-
       </div>
 
+      {/* Checkbox Política de Privacidad */}
       <label className="mt-4 flex items-start gap-2 text-sm text-white/80">
         <input
           type="checkbox"
@@ -237,15 +229,17 @@ export default function LeadForm({ initial }: Props) {
         </span>
       </label>
 
+      {/* Mensaje de Error */}
       {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="mt-6 w-full rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-6 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 disabled:opacity-60"
-        >
-          {loading ? 'Enviando...' : 'Continuar y elegir mi plan'}
-        </button>
+      {/* Botón Submit */}
+      <button
+        type="submit"
+        disabled={loading}
+        className="mt-6 w-full rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-6 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 disabled:opacity-60"
+      >
+        {loading ? 'Enviando...' : 'Continuar y elegir mi plan'}
+      </button>
     </form>
   )
 }
