@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation' // Importar useRouter
+import { useRouter } from 'next/navigation'
 
 type Registro = {
   id_suscriptor?: string
@@ -17,78 +17,71 @@ type Registro = {
   error_backend?: string
 }
 
-export default function PlanCards2() { // Nombre original de tu componente
+export default function PlanCards2() {
   const router = useRouter();
   
   // ===========================================
-  // === ESTADOS MEJORADOS ===
+  // === ESTADOS ===
   // ===========================================
-  // Estado para los datos del registro
   const [reg, setReg] = useState<Registro | null>(null);
-  // Estado para el loading de la página (esperando el ID del sessionStorage)
-  const [loadingPage, setLoadingPage] = useState(true);
-  // Estado para el loading del botón (llamando a MP)
-  const [loadingPago, setLoadingPago] = useState(false);
-  // Estado para mensajes de error (duplicado, error de alta)
+  const [loadingPago, setLoadingPago] = useState(false); // Para el clic del botón
   const [mensajeError, setMensajeError] = useState<string | null>(null);
 
   // ===========================================
-  // === USEEFFECT CON POLLING (LÓGICA CORREGIDA) ===
+  // === USEEFFECT CON POLLING ===
   // ===========================================
-  // Este Effect es el núcleo de la solución "sin fricción".
-  // Busca el id_suscriptor que 'LeadForm.tsx' (Página 1) está guardando
-  // en segundo plano.
   useEffect(() => {
+    
+    // Función que revisa sessionStorage
     function checkRegistro() {
       try {
         const raw = sessionStorage.getItem('registro');
         if (!raw) {
-          console.log('[PlanCards2] No hay \'registro\' en sessionStorage. Esperando...');
-          return false; // Continuar polling
+          // Si no hay nada, podría ser que el usuario navegó directo aquí
+          console.warn("[PlanCards2] Polling: No hay 'registro' en sessionStorage.");
+          return true; // Detener polling si no hay registro
         }
 
         const registro: Registro = JSON.parse(raw);
 
+        // Actualizamos 'reg' en CADA sondeo.
+        // 1. Primero se seteará sin id_suscriptor (renderiza el saludo)
+        // 2. Luego se seteará CON id_suscriptor (habilita el botón)
+        setReg(registro); 
+
         // CASO 1: ¡ÉXITO! Se encontró el ID
         if (registro.id_suscriptor) {
-          console.log(`[PlanCards2] ID ${registro.id_suscriptor} encontrado.`);
-          setReg(registro);
-          setLoadingPage(false);
+          console.log(`[PlanCards2] Polling: ID ${registro.id_suscriptor} encontrado.`);
           setMensajeError(null);
           return true; // Detener polling
         }
 
-        // CASO 2: Error de Duplicado (detectado por LeadForm en 2do plano)
+        // CASO 2: Error de Duplicado
         if (registro.resultado === 'duplicado') {
-          console.warn('[PlanCards2] Resultado duplicado encontrado.');
-          setReg(registro); // Guardamos 'reg' para el link "Editar"
-          setLoadingPage(false);
+          console.warn('[PlanCards2] Polling: Resultado duplicado encontrado.');
           setMensajeError(registro.mensaje || 'Ya tenés una suscripción activa.');
           return true; // Detener polling
         }
 
-        // CASO 3: Error de Backend (detectado por LeadForm en 2do plano)
+        // CASO 3: Error de Backend
         if (registro.error_backend) {
-          console.error('[PlanCards2] Error de backend encontrado:', registro.error_backend);
-          setReg(null); // No hay datos válidos
-          setLoadingPage(false);
+          console.error('[PlanCards2] Polling: Error de backend encontrado:', registro.error_backend);
           setMensajeError(registro.error_backend);
           return true; // Detener polling
         }
 
         // CASO 4: Aún no hay ID, seguir esperando...
-        console.log('[PlanCards2] Esperando id_suscriptor...');
+        console.log('[PlanCards2] Polling: Esperando id_suscriptor...');
         return false; // Continuar polling
 
       } catch (err) {
-        console.error('Error leyendo sessionStorage:', err);
-        setLoadingPage(false);
+        console.error('Error leyendo sessionStorage en polling:', err);
         setMensajeError("Error al leer tus datos de registro.");
         return true; // Detener polling por error
       }
     }
 
-    // Ejecución inicial
+    // Ejecución inicial del polling (por si ya estaba listo)
     if (checkRegistro()) return;
 
     // Intervalo de polling
@@ -96,22 +89,20 @@ export default function PlanCards2() { // Nombre original de tu componente
       if (checkRegistro()) {
         clearInterval(interval);
       }
-    }, 500); // Revisa cada 500ms
+    }, 500); // Revisa 2 veces por segundo
 
     // Limpiar al desmontar
     return () => clearInterval(interval);
-  }, []); // Solo se ejecuta una vez al montar
+  }, []); // El array vacío asegura que se ejecute solo una vez al montar
 
   // ===========================================
-  // === LÓGICA DE ACTIVACIÓN (Tu código original) ===
+  // === LÓGICA DE ACTIVACIÓN (SIN CAMBIOS) ===
   // ===========================================
   async function handleActivate() {
-    // Usamos los estados 'reg' y 'loadingPago'
     if (!reg || !reg.id_suscriptor || loadingPago) return; 
     setLoadingPago(true);
 
     try {
-      // Llamamos a la API proxy que creamos
       const res = await fetch('/api/crear-suscripcion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,7 +113,6 @@ export default function PlanCards2() { // Nombre original de tu componente
           signo: reg.signo,
           contenido_preferido: reg.contenido_preferido,
           email: reg.email ?? `user_${reg.whatsapp}@tuhoroscopocosmico.com`,
-          // Añadimos los datos del plan
           monto: 390,
           moneda: "UYU",
           reason: `Premium mensual THC - ${reg.nombre}`
@@ -146,22 +136,10 @@ export default function PlanCards2() { // Nombre original de tu componente
   }
 
   // ===========================================
-  // === RENDERIZADO CON ESTADOS DE CARGA Y ERROR ===
+  // === RENDERIZADO ===
   // ===========================================
 
-  // 1. Estado de Carga (Esperando ID)
-  if (loadingPage) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-gray-900 text-white">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-t-pink-400 border-white/30 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white/80 text-lg">Cargando tus datos de registro...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Estado de Error (Duplicado o Falla de Alta)
+  // 1. Estado de Error (Duplicado o Falla de Alta) - MODAL
   if (mensajeError) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
@@ -174,7 +152,6 @@ export default function PlanCards2() { // Nombre original de tu componente
           <button
             onClick={() => {
               setMensajeError(null);
-              // Limpiamos el error para que no vuelva a aparecer
               sessionStorage.removeItem('registro'); 
               router.push("/registro?from=planes");
             }}
@@ -187,20 +164,23 @@ export default function PlanCards2() { // Nombre original de tu componente
     );
   }
 
-  // 3. Estado Sin Registro (Fallback si algo falla y no hay error)
+  // 2. Estado de Carga INICIAL (antes del primer polling)
+  // Muestra un loader breve mientras 'reg' es null
   if (!reg) {
     return (
       <div className="max-w-[720px] mx-auto px-4 py-16 text-center">
-        <p className="text-white/80">No encontramos tus datos. Volvé al inicio 🚀</p>
-        <Link href="/registro" className="inline-block mt-6 rounded-xl2 px-5 py-3 font-semibold text-[#1a0935] bg-cta-grad shadow-glow">
-          Ir al registro
-        </Link>
+        {/* Loader simple para la carga inicial */}
+        <div className="w-10 h-10 border-4 border-t-pink-400 border-white/30 rounded-full animate-spin mx-auto"></div>
       </div>
     );
   }
 
-  // 4. Estado de Éxito (Mostrar Tarjeta de Plan)
+  // 3. Estado de Éxito/Carga (Mostrar Tarjeta de Plan)
+  // 'reg' existe (al menos con nombre/signo, quizás sin id_suscriptor todavía)
   const maskedWa = reg.whatsapp.replace(/^(\+\d{3})\d+(\d{3})$/, '$1 *** $2');
+  
+  // Variable de control para el botón
+  const isButtonDisabled = loadingPago || !reg.id_suscriptor;
 
   return (
     <div className="px-4 py-12">
@@ -231,13 +211,16 @@ export default function PlanCards2() { // Nombre original de tu componente
               <li>Renovación automática. Cancelás cuando quieras.</li>
               <li>Recibí tu primer mensaje en minutos.</li>
             </ul>
+            
+            {/* === BOTÓN CORREGIDO (TEXTO FIJO) === */}
             <button
               onClick={handleActivate}
-              disabled={loadingPago || !reg.id_suscriptor} // Deshabilitar si no hay ID o ya está cargando
+              disabled={isButtonDisabled} // Deshabilitado si carga pago O si no hay ID
               className="w-full rounded-xl2 px-5 py-3 font-bold text-[#1a0935] bg-cta-grad shadow-glow hover:opacity-[.98] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loadingPago ? 'Iniciando pago…' : 'Activá tu cuenta ahora'}
             </button>
+
             <p className="text-white/55 text-xs mt-3">
               Serás redirigido a Mercado Pago para finalizar el pago de forma segura.
             </p>
@@ -259,4 +242,3 @@ export default function PlanCards2() { // Nombre original de tu componente
     </div>
   )
 }
-
