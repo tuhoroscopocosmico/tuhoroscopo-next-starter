@@ -24,66 +24,77 @@ export default function PlanCards2() { // Nombre original de tu componente
   // === ESTADOS MEJORADOS ===
   // ===========================================
   const [reg, setReg] = useState<Registro | null>(null);
-  const [loadingPage, setLoadingPage] = useState(true);
+  // Se elimina 'loadingPage'
   const [loadingPago, setLoadingPago] = useState(false);
   const [mensajeError, setMensajeError] = useState<string | null>(null);
 
   // ===========================================
-  // === USEEFFECT CON POLLING (LÓGICA CORREGIDA) ===
+  // === USEEFFECT CON POLLING (LÓGICA MEJORADA) ===
   // ===========================================
   useEffect(() => {
+    
+    // --- 1. LECTURA INICIAL (SIN ID) ---
+    // Leemos los datos iniciales (nombre, signo) que LeadForm guardó
+    // para que la página se vea bien mientras se espera el ID.
+    try {
+      const rawInicial = sessionStorage.getItem('registro');
+      if (rawInicial) {
+        const registroInicial: Registro = JSON.parse(rawInicial);
+        setReg(registroInicial); // Establece los datos (con o sin ID)
+      }
+    } catch (e) {
+      console.error("Error en lectura inicial de sessionStorage", e);
+      // Si falla, el fallback !reg se encargará
+    }
+
+    // --- 2. POLLING (BUSCANDO ID O ERROR) ---
     function checkRegistro() {
       try {
         const raw = sessionStorage.getItem('registro');
         if (!raw) {
-          // --- CORRECCIÓN DE SYNTAX ERROR AQUÍ ---
-          console.log("[PlanCards2] No hay 'registro' en sessionStorage. Esperando...");
-          // -------------------------------------
-          return false; // Continuar polling
+          console.warn("[PlanCards2] Polling: No hay 'registro' en sessionStorage.");
+          // Esto puede pasar si el usuario navega directo a /planes
+          return true; // Detener polling
         }
 
         const registro: Registro = JSON.parse(raw);
 
         // CASO 1: ¡ÉXITO! Se encontró el ID
         if (registro.id_suscriptor) {
-          console.log(`[PlanCards2] ID ${registro.id_suscriptor} encontrado.`);
-          setReg(registro);
-          setLoadingPage(false);
+          console.log(`[PlanCards2] Polling: ID ${registro.id_suscriptor} encontrado.`);
+          setReg(registro); // Actualiza 'reg' con el ID
           setMensajeError(null);
           return true; // Detener polling
         }
 
         // CASO 2: Error de Duplicado (detectado por LeadForm en 2do plano)
         if (registro.resultado === 'duplicado') {
-          console.warn('[PlanCards2] Resultado duplicado encontrado.');
+          console.warn('[PlanCards2] Polling: Resultado duplicado encontrado.');
           setReg(registro); 
-          setLoadingPage(false);
           setMensajeError(registro.mensaje || 'Ya tenés una suscripción activa.');
           return true; // Detener polling
         }
 
         // CASO 3: Error de Backend (detectado por LeadForm en 2do plano)
         if (registro.error_backend) {
-          console.error('[PlanCards2] Error de backend encontrado:', registro.error_backend);
-          setReg(null);
-          setLoadingPage(false);
+          console.error('[PlanCards2] Polling: Error de backend encontrado:', registro.error_backend);
+          setReg(registro); // Guardar 'reg' para "Editar"
           setMensajeError(registro.error_backend);
           return true; // Detener polling
         }
 
         // CASO 4: Aún no hay ID, seguir esperando...
-        console.log('[PlanCards2] Esperando id_suscriptor...');
+        console.log('[PlanCards2] Polling: Esperando id_suscriptor...');
         return false; // Continuar polling
 
       } catch (err) {
-        console.error('Error leyendo sessionStorage:', err);
-        setLoadingPage(false);
+        console.error('Error leyendo sessionStorage en polling:', err);
         setMensajeError("Error al leer tus datos de registro.");
         return true; // Detener polling por error
       }
     }
 
-    // Ejecución inicial
+    // Ejecución inicial del polling (por si ya estaba listo)
     if (checkRegistro()) return;
 
     // Intervalo de polling
@@ -91,7 +102,7 @@ export default function PlanCards2() { // Nombre original de tu componente
       if (checkRegistro()) {
         clearInterval(interval);
       }
-    }, 500); 
+    }, 500); // Revisa cada 500ms
 
     // Limpiar al desmontar
     return () => clearInterval(interval);
@@ -138,22 +149,10 @@ export default function PlanCards2() { // Nombre original de tu componente
   }
 
   // ===========================================
-  // === RENDERIZADO CON ESTADOS DE CARGA Y ERROR ===
+  // === RENDERIZADO (SIN LOADER PRINCIPAL) ===
   // ===========================================
 
-  // 1. Estado de Carga (Esperando ID)
-  if (loadingPage) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-gray-900 text-white">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-t-pink-400 border-white/30 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white/80 text-lg">Cargando tus datos de registro...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Estado de Error (Duplicado o Falla de Alta)
+  // 1. Estado de Error (Duplicado o Falla de Alta) - MODAL
   if (mensajeError) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
@@ -178,8 +177,10 @@ export default function PlanCards2() { // Nombre original de tu componente
     );
   }
 
-  // 3. Estado Sin Registro (Fallback)
+  // 2. Estado Sin Registro (Fallback si sessionStorage estaba vacío)
   if (!reg) {
+    // Esto se mostrará si el usuario navega a /planes directamente
+    // O si la lectura inicial de sessionStorage falló.
     return (
       <div className="max-w-[720px] mx-auto px-4 py-16 text-center">
         <p className="text-white/80">No encontramos tus datos. Volvé al inicio 🚀</p>
@@ -190,7 +191,8 @@ export default function PlanCards2() { // Nombre original de tu componente
     );
   }
 
-  // 4. Estado de Éxito (Mostrar Tarjeta de Plan)
+  // 3. Estado de Éxito/Carga (Mostrar Tarjeta de Plan)
+  // 'reg' existe (al menos con nombre/signo, quizás sin id_suscriptor todavía)
   const maskedWa = reg.whatsapp.replace(/^(\+\d{3})\d+(\d{3})$/, '$1 *** $2');
 
   return (
@@ -222,13 +224,17 @@ export default function PlanCards2() { // Nombre original de tu componente
               <li>Renovación automática. Cancelás cuando quieras.</li>
               <li>Recibí tu primer mensaje en minutos.</li>
             </ul>
+            
+            {/* === BOTÓN CON LÓGICA MEJORADA === */}
             <button
               onClick={handleActivate}
-              disabled={loadingPago || !reg.id_suscriptor} // Deshabilitar si no hay ID o ya está cargando
+              disabled={loadingPago || !reg.id_suscriptor} // Deshabilitado si carga pago O si no hay ID
               className="w-full rounded-xl2 px-5 py-3 font-bold text-[#1a0935] bg-cta-grad shadow-glow hover:opacity-[.98] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loadingPago ? 'Iniciando pago…' : 'Activá tu cuenta ahora'}
+              {loadingPago ? 'Iniciando pago…' : 
+               !reg.id_suscriptor ? 'Verificando registro...' : 'Activá tu cuenta ahora'}
             </button>
+
             <p className="text-white/55 text-xs mt-3">
               Serás redirigido a Mercado Pago para finalizar el pago de forma segura.
             </p>
@@ -250,3 +256,4 @@ export default function PlanCards2() { // Nombre original de tu componente
     </div>
   )
 }
+
