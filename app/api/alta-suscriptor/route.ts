@@ -46,10 +46,19 @@ export async function POST(req: Request) {
     }
 
 
-    const EDGE_BASE = process.env.NEXT_PUBLIC_EDGE_BASE;
-    const SRK = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!EDGE_BASE || !SRK) { /* ... (manejo error env) ... */ }
+        // 2. Validar Variables de Entorno
+    const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
+
+    if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { ok: false, error: "Faltan variables de entorno de Supabase" },
+        { status: 500 }
+      );
+    }
+    
+    const EDGE_BASE = NEXT_PUBLIC_SUPABASE_URL;
+    const SRK = SUPABASE_SERVICE_ROLE_KEY;
 
     // 📌 Captura de datos de consentimiento desde Headers (usando next/headers)
     const headersList = headers();
