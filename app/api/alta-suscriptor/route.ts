@@ -15,9 +15,6 @@ const DES = false; // true = payload de prueba
 const DEBUG_LOGS = true; // true = log en consola
 
 export async function POST(req: Request) {
-  const funcion = "api-alta-suscriptor"; // Nombre para logging
-  let supabase; // Cliente de Supabase para logging de errores
-  
   try {
     let body = await req.json().catch(() => null);
 
@@ -30,46 +27,45 @@ export async function POST(req: Request) {
     } else {
       if (DEBUG_LOGS) console.log("🔍 [API] Body recibido en /alta-suscriptor:", body);
     }
-    
-    // ===========================================
-    // === LECTURA DE VARIABLES DE ENTORNO (Servidor Vercel) ===
-    // ===========================================
-    // Leemos las variables del lado del SERVIDOR (sin NEXT_PUBLIC_)
-    // Estas deben estar configuradas en Vercel
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SRK = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!SUPABASE_URL || !SRK) {
-      console.error("❌ Faltan variables de entorno del SERVIDOR: SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY");
-      return NextResponse.json( { resultado: "error", mensaje: "Faltan variables de entorno del servidor" }, { status: 500 });
-    }
-    
-    // Construimos la URL base completa de las funciones
-    const EDGE_BASE_URL = `${SUPABASE_URL}/functions/v1`; 
 
     // ===========================================
     // === VALIDACIÓN DE CAMPOS REQUERIDOS ===
     // ===========================================
-    // Validamos el body después de tener las ENVs para poder loguear el error a Supabase
-    if (!body) {
-      return NextResponse.json({ resultado: "error", mensaje: "Body JSON inválido" }, { status: 400 });
-    }
-
+    // Valida que todos los campos de REQUIRED existan
     for (const k of REQUIRED) {
       if (body?.[k] === undefined || body?.[k] === null || body?.[k] === '') {
+        // Permite que acepto_politicas sea 'false' pero fallará en la próxima validación
         if (k === 'acepto_politicas' && body?.[k] === false) {
-           // Si es 'acepto_politicas' y es false, fallará en la siguiente validación
         } else {
             console.error("❌ Falta campo obligatorio o está vacío:", k, "Body:", body);
             return NextResponse.json( { resultado: "error", mensaje: `Falta ${k}` }, { status: 400 } );
         }
       }
     }
-    // Específicamente validar que acepto_politicas sea true
+    // Valida específicamente que las políticas hayan sido aceptadas
     if (body?.acepto_politicas !== true) {
         console.error("❌ Política no aceptada:", "acepto_politicas:", body?.acepto_politicas);
         return NextResponse.json( { resultado: "error", mensaje: `Debe aceptar la política de privacidad` }, { status: 400 } );
     }
+
+    // ===========================================
+    // === LECTURA DE VARIABLES DE ENTORNO (Servidor Vercel) ===
+    // ===========================================
+    // CORRECCIÓN: Leemos SUPABASE_URL (del servidor), no NEXT_PUBLIC_SUPABASE_URL
+    // Estas deben estar configuradas en Vercel
+    const SUPABASE_URL_SERVER = process.env.SUPABASE_URL;
+    const SRK = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!SUPABASE_URL_SERVER || !SRK) {
+        console.error("❌ Variables de entorno del SERVIDOR faltantes:", { 
+            SUPABASE_URL: SUPABASE_URL_SERVER ? "OK" : "MISSING", 
+            SRK: SRK ? "OK" : "MISSING" 
+        });
+        return NextResponse.json( { resultado: "error", mensaje: "Faltan variables de entorno del servidor" }, { status: 500 });
+    }
+    
+    // Construimos la URL base completa de las funciones
+    const EDGE_BASE_URL = `${SUPABASE_URL_SERVER}/functions/v1`; 
 
     // ===========================================
     // === CAPTURA DE DATOS DE CONSENTIMIENTO ===
@@ -96,7 +92,7 @@ export async function POST(req: Request) {
       tipo_suscripcion: "premium",
     };
 
-    const url = `${EDGE_BASE_URL}/ef_alta_suscriptor_premium`;
+    const url = `${EDGE_BASE_URL}/ef_alta_suscriptor_premium`; // URL ahora construida correctamente
 
     if (DEBUG_LOGS) console.log("🌐 Llamando a Edge Function:", url);
     if (DEBUG_LOGS) console.log("📦 Payload enviado a Edge Function:", payload);
@@ -104,7 +100,6 @@ export async function POST(req: Request) {
     // ===========================================
     // === LLAMADA (PROXY) A EDGE FUNCTION ===
     // ===========================================
-    // Esta API Route actúa como un proxy seguro
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -119,15 +114,16 @@ export async function POST(req: Request) {
     // === MANEJO DE RESPUESTA DE EDGE FUNCTION ===
     // ===========================================
     let data;
-    // Manejamos el caso donde la Edge Function crashea y devuelve HTML/texto
     try {
+        // Primero intentamos leer la respuesta como JSON
         data = await res.json();
     } catch (e) {
+        // Captura si la Edge Function crashea y devuelve HTML/texto (ej. SocketError)
         console.error("❌ Error al parsear JSON de Edge Function (probablemente crasheó):", e);
-        const errorTexto = await res.text();
+        const errorTexto = await res.text().catch(() => "Respuesta ilegible");
         console.error("Respuesta (no JSON) de Edge Function:", errorTexto);
-        // Creamos un objeto de error estándar
         data = { resultado: "error", mensaje: "Error en la Edge Function", detalle: errorTexto };
+        // Devolvemos el status original si es un error
         return NextResponse.json(data, { status: res.status || 500 });
     }
 
@@ -153,3 +149,4 @@ export async function POST(req: Request) {
 export async function GET() {
   return NextResponse.json({ ok: true });
 }
+
