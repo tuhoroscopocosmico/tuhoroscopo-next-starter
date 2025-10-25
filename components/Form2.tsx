@@ -46,7 +46,7 @@ export default function Formulario() {
     // disparo en segundo plano (proxy interno)
     const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' })
     if ('sendBeacon' in navigator) {
-      navigator.sendBeacon('/api/alta-suscriptor', blob)
+      navigator.sendBeacon('/app/api/alta-suscriptor', blob)
     } else {
       fetch('/api/alta-suscriptor', {
         method: 'POST',

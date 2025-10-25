@@ -60,7 +60,7 @@ export default function LeadForm({ initial }: Props) {
       }
 
       // 🔄 Validación Sincrónica (llamada a API)
-      const res = await fetch('app/api/alta-suscriptor', { // Ruta corregida
+      const res = await fetch('/api/alta-suscriptor', { // Ruta corregida
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -74,7 +74,7 @@ export default function LeadForm({ initial }: Props) {
       if (!res.ok) {
         // Intentamos leer el JSON de error que *debería* enviar nuestra API
         const errorData = await res.json().catch(() => ({}));
-        console.error('Error en app/api/alta-suscriptor:', errorData);
+        console.error('Error en /api/alta-suscriptor:', errorData);
         setError(errorData.mensaje || `Error ${res.status}: Ocurrió un problema.`);
         setLoading(false);
         return; // No redirigimos
@@ -85,7 +85,7 @@ export default function LeadForm({ initial }: Props) {
       
       const id_suscriptor = data.id_suscriptor;
       if (!id_suscriptor) {
-         console.error('Error: app/api/alta-suscriptor OK pero no devolvió id_suscriptor', data);
+         console.error('Error: /api/alta-suscriptor OK pero no devolvió id_suscriptor', data);
          setError('Error al obtener ID de registro.');
          setLoading(false);
          return;
