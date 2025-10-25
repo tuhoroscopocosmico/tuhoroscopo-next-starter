@@ -4,7 +4,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { FormEvent, useEffect, useState } from 'react'
 import ReactCountryFlag from "react-country-flag";
 
-// ... (constantes signos y preferencias sin cambios) ...
+// ===========================================
+// === CONSTANTES (SIN CAMBIOS) ===
+// ===========================================
 const signos = [ { value: 'Aries', label: '🐏 Aries' }, { value: 'Tauro', label: '🐂 Tauro' }, { value: 'Géminis', label: '👯‍♂️ Géminis' }, { value: 'Cáncer', label: '🦀 Cáncer' }, { value: 'Leo', label: '🦁 Leo' }, { value: 'Virgo', label: '🌸 Virgo' }, { value: 'Libra', label: '⚖️ Libra' }, { value: 'Escorpio', label: '🦂 Escorpio' }, { value: 'Sagitario', label: '🏹 Sagitario' }, { value: 'Capricornio', label: '🐐 Capricornio' }, { value: 'Acuario', label: '🌊 Acuario' }, { value: 'Piscis', label: '🐟 Piscis' }, ];
 const preferencias = [ { value: 'general', label: '🌌 General (un poco de todo)' }, { value: 'amor', label: '💘 Amor' }, { value: 'trabajo', label: '💼 Dinero y trabajo' }, { value: 'bienestar', label: '🧘 Bienestar' }, { value: 'espiritual', label: '🪄 Energía espiritual' }, ];
 
@@ -24,26 +26,31 @@ export default function LeadForm({ initial }: Props) {
   const [whatsapp, setWhatsapp] = useState('')
   const [acepta, setAcepta] = useState(false)
 
-  // ... (hooks useEffect y función normalizarUY sin cambios) ...
+  // ===========================================
+  // === HOOKS Y HELPERS (SIN CAMBIOS) ===
+  // ===========================================
   useEffect(() => { if (initial?.nombre) setNombre(initial.nombre); if (initial?.signo) setSigno(initial.signo); if (initial?.preferencia) setPref(initial.preferencia); if (initial?.whatsappLocal) { setWhatsapp(initial.whatsappLocal); } else if (initial?.whatsapp) { const solo = initial.whatsapp.replace(/[^\d]/g, ''); setWhatsapp(solo.startsWith('598') ? `0${solo.slice(3)}` : solo); } }, [initial])
   useEffect(() => { if (params.get('from') === 'planes') setAcepta(true); }, [params])
   function normalizarUY(num: string) { const solo = num.replace(/[^\d]/g, ''); const sin0 = solo.replace(/^0/, ''); return { telefono: sin0, whatsapp: `+598${sin0}` } }
 
-
+  // ===========================================
+  // === onSubmit (MODIFICADO A "FIRE AND FORGET") ===
+  // ===========================================
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
 
+    // Validaciones (sin cambios)
     if (!acepta) { setError('Debés aceptar la Política de Privacidad.'); return }
     if (!nombre || !signo || !whatsapp) { setError('Completá todos los campos.'); return }
-
     const telSolo = whatsapp.replace(/[^\d]/g, '')
     if (!/^09\d{7}$/.test(telSolo)) {
       setError('El número debe comenzar con 09 y tener 9 dígitos (ej: 099123456).')
       return
     }
 
-    setLoading(true)
+    setLoading(true); // Mostramos loading, aunque redirigimos rápido
+
     try {
       const { telefono, whatsapp: waE164 } = normalizarUY(whatsapp)
 
@@ -59,62 +66,83 @@ export default function LeadForm({ initial }: Props) {
         acepto_politicas: acepta
       }
 
-      // 🔄 Validación Sincrónica (llamada a API)
-      const res = await fetch('/api/alta-suscriptor', { // Ruta corregida
+      // ===========================================
+      // === LÓGICA DE REGISTRO ASÍNCRONO ===
+      // ===========================================
+
+      // 1. Guardamos los datos iniciales (sin id_suscriptor)
+      const datosIniciales = {
+        nombre: payload.nombre,
+        whatsapp: payload.whatsapp,
+        whatsappLocal: `0${telefono}`,
+        signo: payload.signo,
+        contenido_preferido: payload.contenido_preferido,
+      };
+      sessionStorage.setItem('registro', JSON.stringify(datosIniciales));
+
+      // 2. Redirigimos INMEDIATAMENTE
+      router.push('/planes');
+
+      // 3. Ejecutamos el alta en SEGUNDO PLANO
+      // (No usamos 'await' para no bloquear la redirección)
+      fetch('/api/alta-suscriptor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+      })
+        .then(async res => {
+          // ===========================================
+          // === MANEJO DE RESPUESTA EN 2DO PLANO ===
+          // ===========================================
+          // Esto se ejecuta *después* de que el usuario ya está en /planes
+          if (!res.ok) {
+            // Si falló, guardamos el error en sessionStorage
+            const errorData = await res.json().catch(() => ({}));
+            console.error('Error en /alta-suscriptor (segundo plano):', errorData);
+            sessionStorage.setItem('registro', JSON.stringify({
+              ...datosIniciales,
+              error_backend: errorData.mensaje || `Error ${res.status}`
+            }));
+            return;
+          }
 
-      // ===========================================
-      // === CORRECCIÓN DE MANEJO DE ERRORES ===
-      // ===========================================
+          const data = await res.json();
+          const id_suscriptor = data.id_suscriptor;
 
-      // 1. Verificar si la respuesta NO fue OK (ej. 400, 409, 500)
-      if (!res.ok) {
-        // Intentamos leer el JSON de error que *debería* enviar nuestra API
-        const errorData = await res.json().catch(() => ({}));
-        console.error('Error en /api/alta-suscriptor:', errorData);
-        setError(errorData.mensaje || `Error ${res.status}: Ocurrió un problema.`);
-        setLoading(false);
-        return; // No redirigimos
-      }
-
-      // 2. Si la respuesta SÍ fue OK, leemos el JSON
-      const data = await res.json();
-      
-      const id_suscriptor = data.id_suscriptor;
-      if (!id_suscriptor) {
-         console.error('Error: /api/alta-suscriptor OK pero no devolvió id_suscriptor', data);
-         setError('Error al obtener ID de registro.');
-         setLoading(false);
-         return;
-      }
-      // ===========================================
-
-      // 👉 Guardamos todo en sessionStorage ANTES de redirigir
-      sessionStorage.setItem('registro', JSON.stringify({
-        ...payload,
-        whatsappLocal: `0${telefono}`,
-        id_suscriptor: id_suscriptor,
-        resultado: data.resultado,
-        mensaje: data.mensaje,
-      }));
-
-      // 🚀 Redirigir a planes
-      router.push('/planes');
+          if (id_suscriptor) {
+            // ¡ÉXITO! Actualizamos sessionStorage con el ID
+            console.log(`[LeadForm] ID ${id_suscriptor} obtenido en 2do plano.`);
+            sessionStorage.setItem('registro', JSON.stringify({
+              ...datosIniciales,
+              id_suscriptor: id_suscriptor,
+              resultado: data.resultado,
+              mensaje: data.mensaje,
+            }));
+          } else {
+            // La API dio OK pero no devolvió ID (error raro)
+            console.error('Error: /alta-suscriptor OK pero no devolvió id_suscriptor', data);
+            sessionStorage.setItem('registro', JSON.stringify({
+              ...datosIniciales,
+              error_backend: "Alta OK, pero ID no recibido."
+            }));
+          }
+        })
+        .catch(err => {
+          // Error de red
+          console.error('Error de red en /alta-suscriptor (segundo plano):', err);
+          sessionStorage.setItem('registro', JSON.stringify({
+            ...datosIniciales,
+            error_backend: err.message || 'Error de red'
+          }));
+        });
 
     } catch (err) {
-      // Este catch captura errores de red o errores de sintaxis si algo falla
+      // Este catch es solo para errores *antes* del fetch (ej. normalizarUY)
       console.error(err)
-      // Si el error es el que vimos (porque res.json() falló en un 500)
-      if (err instanceof SyntaxError) {
-        setError('Error inesperado del servidor. No se pudo leer la respuesta.');
-      } else {
-        setError('Ocurrió un error de red. Probá de nuevo.')
-      }
-      setLoading(false)
-    } 
+      setError('Ocurrió un error. Probá de nuevo.')
+      setLoading(false);
+    }
+    // No ponemos setLoading(false) porque ya hemos redirigido
   }
 
   return (
@@ -138,7 +166,8 @@ export default function LeadForm({ initial }: Props) {
       </div>
       <label className="mt-4 flex items-start gap-2 text-sm text-white/80"> <input type="checkbox" checked={acepta} onChange={() => setAcepta(a => !a)} required className="mt-1" /> <span> Acepto la{' '} <a className="underline hover:text-pink-300" href="/politica-de-privacidad" target="_blank" rel="noreferrer"> Política de Privacidad </a>. </span> </label>
       {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
-      <button type="submit" disabled={loading} className="mt-6 w-full rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-6 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 disabled:opacity-60" > {loading ? 'Verificando...' : 'Continuar y elegir mi plan'} </button>
+      <button type="submit" disabled={loading} className="mt-6 w-full rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-6 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 disabled:opacity-60" > {loading ? 'Enviando...' : 'Continuar y elegir mi plan'} </button>
     </form>
   )
 }
+
