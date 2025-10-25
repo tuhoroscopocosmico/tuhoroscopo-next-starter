@@ -2,102 +2,154 @@
 import { NextResponse } from "next/server";
 import { headers } from 'next/headers'; // Importar para leer cabeceras en App Router
 
-const REQUIRED = ["nombre", "telefono", "signo", "contenido_preferido", "acepto_politicas"] as const; // Añadido acepto_politicas
+// ===========================================
+// === CAMPOS REQUERIDOS EN EL BODY ===
+// ===========================================
+// Define los campos que deben venir desde el frontend
+const REQUIRED = ["nombre", "telefono", "signo", "contenido_preferido", "acepto_politicas"] as const;
 
-// 🔹 Flags de entorno
-const DES = false;
-const DEBUG_LOGS = true;
+// ===========================================
+// === FLAGS DE DEPURACIÓN ===
+// ===========================================
+const DES = false; // true = payload de prueba
+const DEBUG_LOGS = true; // true = log en consola
 
 export async function POST(req: Request) {
+  const funcion = "api-alta-suscriptor"; // Nombre para logging
+  let supabase; // Cliente de Supabase para logging de errores
+  
   try {
     let body = await req.json().catch(() => null);
 
+    // ===========================================
+    // === MODO PRUEBA (DES) ===
+    // ===========================================
     if (DES) {
-      body = { nombre: "Juan Pérez", telefono: "98122322", signo: "Aries", contenido_preferido: "amor", acepto_politicas: true, version_politica: "v1.0" }; // Añadido para prueba
+      body = { nombre: "Juan Pérez", telefono: "98122322", signo: "Aries", contenido_preferido: "amor", acepto_politicas: true, version_politica: "v1.0" };
       if (DEBUG_LOGS) console.log("🧪 [API] Payload forzado en modo prueba:", body);
     } else {
       if (DEBUG_LOGS) console.log("🔍 [API] Body recibido en /alta-suscriptor:", body);
     }
+    
+    // ===========================================
+    // === LECTURA DE VARIABLES DE ENTORNO (Servidor Vercel) ===
+    // ===========================================
+    // Leemos las variables del lado del SERVIDOR (sin NEXT_PUBLIC_)
+    // Estas deben estar configuradas en Vercel
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SRK = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // Validación rápida (ahora incluye acepto_politicas)
-    for (const k of REQUIRED) {
-      // Manejar booleano acepto_politicas que puede ser false
-      if (body?.[k] === undefined || body?.[k] === null || body?.[k] === '') {
-         // Excepto si es acepto_politicas y es false
-         if (k === 'acepto_politicas' && body?.[k] === false) {
-             // Es válido que sea false, pero la lógica de negocio puede requerir true
-             // Por ahora, asumimos que si llega false, la validación del form falló antes
-         } else {
-             console.error("❌ Falta campo obligatorio o está vacío:", k, "Body:", body);
-             return NextResponse.json(
-                 { resultado: "error", mensaje: `Falta ${k}` },
-                 { status: 400 }
-             );
-         }
-      }
-    }
-    // Específicamente validar que acepto_politicas sea true si es requerido
-    if (body?.acepto_politicas !== true) {
-         console.error("❌ Política no aceptada:", "acepto_politicas:", body?.acepto_politicas);
-         return NextResponse.json(
-             { resultado: "error", mensaje: `Debe aceptar la política de privacidad` },
-             { status: 400 }
-         );
-    }
-
-
-
-        // 2. Validar Variables de Entorno
-    const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
-
-    if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json(
-        { ok: false, error: "Faltan variables de entorno de Supabase" },
-        { status: 500 }
-      );
+    if (!SUPABASE_URL || !SRK) {
+      console.error("❌ Faltan variables de entorno del SERVIDOR: SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY");
+      return NextResponse.json( { resultado: "error", mensaje: "Faltan variables de entorno del servidor" }, { status: 500 });
     }
     
-    const EDGE_BASE = NEXT_PUBLIC_SUPABASE_URL;
-    const SRK = SUPABASE_SERVICE_ROLE_KEY;
+    // Construimos la URL base completa de las funciones
+    const EDGE_BASE_URL = `${SUPABASE_URL}/functions/v1`; 
 
-    // 📌 Captura de datos de consentimiento desde Headers (usando next/headers)
+    // ===========================================
+    // === VALIDACIÓN DE CAMPOS REQUERIDOS ===
+    // ===========================================
+    // Validamos el body después de tener las ENVs para poder loguear el error a Supabase
+    if (!body) {
+      return NextResponse.json({ resultado: "error", mensaje: "Body JSON inválido" }, { status: 400 });
+    }
+
+    for (const k of REQUIRED) {
+      if (body?.[k] === undefined || body?.[k] === null || body?.[k] === '') {
+        if (k === 'acepto_politicas' && body?.[k] === false) {
+           // Si es 'acepto_politicas' y es false, fallará en la siguiente validación
+        } else {
+            console.error("❌ Falta campo obligatorio o está vacío:", k, "Body:", body);
+            return NextResponse.json( { resultado: "error", mensaje: `Falta ${k}` }, { status: 400 } );
+        }
+      }
+    }
+    // Específicamente validar que acepto_politicas sea true
+    if (body?.acepto_politicas !== true) {
+        console.error("❌ Política no aceptada:", "acepto_politicas:", body?.acepto_politicas);
+        return NextResponse.json( { resultado: "error", mensaje: `Debe aceptar la política de privacidad` }, { status: 400 } );
+    }
+
+    // ===========================================
+    // === CAPTURA DE DATOS DE CONSENTIMIENTO ===
+    // ===========================================
+    // Capturamos IP y User Agent desde las cabeceras de la petición
     const headersList = headers();
     const forwardedFor = headersList.get("x-forwarded-for");
-    const ip = forwardedFor?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "0.0.0.0"; // Añadir x-real-ip como fallback
+    const ip = forwardedFor?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "0.0.0.0";
     const userAgent = headersList.get("user-agent") || "desconocido";
     const fechaConsentimiento = new Date().toISOString();
 
-    // Fusionamos body con campos de cumplimiento (CORREGIDO acepto_politicas)
+    // ===========================================
+    // === ARMADO DE PAYLOAD PARA EDGE FUNCTION ===
+    // ===========================================
+    // Enriquecemos el body del frontend con los datos del servidor
     const payload = {
       ...body,
-      acepto_politicas: body?.acepto_politicas ?? false, // <-- USA EL VALOR RECIBIDO
-      version_politica: body?.version_politica || "v1.0", // Mantiene default
-      medio_consentimiento: body?.fuente || "web-form",   // Mantiene default
+      acepto_politicas: body?.acepto_politicas ?? false,
+      version_politica: body?.version_politica || "v1.0",
+      medio_consentimiento: body?.fuente || "web-form",
       ip_consentimiento: ip,
       user_agent: userAgent,
       fecha_consentimiento: fechaConsentimiento,
       tipo_suscripcion: "premium",
     };
 
-    const url = `${EDGE_BASE}/ef_alta_suscriptor_premium`;
+    const url = `${EDGE_BASE_URL}/ef_alta_suscriptor_premium`;
 
     if (DEBUG_LOGS) console.log("🌐 Llamando a Edge Function:", url);
     if (DEBUG_LOGS) console.log("📦 Payload enviado a Edge Function:", payload);
 
-    const res = await fetch(url, { /* ... (opciones fetch sin cambios) ... */ method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${SRK}` }, body: JSON.stringify(payload), cache: "no-store" });
-    const data = await res.json().catch(() => ({}));
+    // ===========================================
+    // === LLAMADA (PROXY) A EDGE FUNCTION ===
+    // ===========================================
+    // Esta API Route actúa como un proxy seguro
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SRK}`, // Autenticación con la Service Key
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    // ===========================================
+    // === MANEJO DE RESPUESTA DE EDGE FUNCTION ===
+    // ===========================================
+    let data;
+    // Manejamos el caso donde la Edge Function crashea y devuelve HTML/texto
+    try {
+        data = await res.json();
+    } catch (e) {
+        console.error("❌ Error al parsear JSON de Edge Function (probablemente crasheó):", e);
+        const errorTexto = await res.text();
+        console.error("Respuesta (no JSON) de Edge Function:", errorTexto);
+        // Creamos un objeto de error estándar
+        data = { resultado: "error", mensaje: "Error en la Edge Function", detalle: errorTexto };
+        return NextResponse.json(data, { status: res.status || 500 });
+    }
+
     if (DEBUG_LOGS) console.log("📩 Respuesta de Supabase:", { status: res.status, data });
 
-    // Normalización de respuesta (sin cambios)
-    if (res.ok) { return NextResponse.json({ resultado: data.resultado || "ok", mensaje: data.mensaje || "Alta/Update exitoso", id_suscriptor: data.id_suscriptor || null }, { status: 200 }); }
-    if (res.status === 409) { return NextResponse.json({ resultado: "duplicado", mensaje: data.mensaje || "El número ya está registrado como premium activo", id_suscriptor: data.id_suscriptor || null }, { status: 409 }); }
-    return NextResponse.json({ resultado: "error", mensaje: data.mensaje || "Error en el alta", id_suscriptor: data.id_suscriptor || null }, { status: res.status });
+    // Reenviar la respuesta de la Edge Function (OK, 409, 500, etc.) al frontend
+    return NextResponse.json(data, { status: res.status });
 
   } catch (e: any) {
-    console.error("🔥 Error en /api/alta-suscriptor:", e);
-    return NextResponse.json({ resultado: "error", mensaje: "Fallo en el proxy", detalle: e.message }, { status: 500 });
+    // ===========================================
+    // === MANEJO DE ERROR DEL PROXY (CATCH PRINCIPAL) ===
+    // ===========================================
+    console.error("🔥 Error en /api/alta-suscriptor (Catch principal):", e);
+    // Este es el error "Fallo en el proxy" que viste (ej. URL inválida)
+    return NextResponse.json(
+      { resultado: "error", mensaje: "Fallo en el proxy", detalle: e.message },
+      { status: 500 }
+    );
   }
 }
 
-// Healthcheck GET (sin cambios)
-export async function GET() { return NextResponse.json({ ok: true }); }
+// Healthcheck GET
+export async function GET() {
+  return NextResponse.json({ ok: true });
+}
