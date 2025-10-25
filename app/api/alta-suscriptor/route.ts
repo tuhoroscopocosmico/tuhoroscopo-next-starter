@@ -1,6 +1,11 @@
 // /api/alta-suscriptor/route.ts
 import { NextResponse } from "next/server";
 import { headers } from 'next/headers';
+// ===========================================
+// === IMPORTAR LIBRERÍA DE USER AGENT ===
+// ===========================================
+// Importamos la librería que instalaste para parsear el User Agent
+import { UAParser } from 'ua-parser-js';
 
 // ===========================================
 // === CAMPOS REQUERIDOS EN EL BODY ===
@@ -53,13 +58,24 @@ export async function POST(req: Request) {
     const EDGE_BASE_URL = `${SUPABASE_URL_SERVER}/functions/v1`; 
 
     // ===========================================
-    // === CAPTURA DE DATOS DE CONSENTIMIENTO ===
+    // === CAPTURA Y PARSEO DE DATOS DE CONSENTIMIENTO ===
     // ===========================================
     const headersList = headers();
     const forwardedFor = headersList.get("x-forwarded-for");
     const ip = forwardedFor?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "0.0.0.0";
-    const userAgent = headersList.get("user-agent") || "desconocido";
     const fechaConsentimiento = new Date().toISOString();
+
+    // ===========================================
+    // === PARSEO PRECISO DE USER AGENT (USANDO LIBRERÍA) ===
+    // ===========================================
+    // 1. Obtenemos la cadena 'user-agent' genérica de las cabeceras
+    const rawUserAgent = headersList.get("user-agent") || "desconocido";
+    // 2. Usamos la librería ua-parser-js para analizarla
+    const parser = new UAParser(rawUserAgent);
+    const uaInfo = parser.getResult();
+    // 3. Construimos un string limpio, ej: "Chrome 141.0.0.0 (Windows)"
+    const userAgentLimpio = `${uaInfo.browser.name || 'N/D'} ${uaInfo.browser.version || ''} (${uaInfo.os.name || 'N/D'} ${uaInfo.os.version || ''})`;
+    // ===========================================
 
     // ===========================================
     // === ARMADO DE PAYLOAD PARA EDGE FUNCTION ===
@@ -72,7 +88,7 @@ export async function POST(req: Request) {
       // -----------------------------------------------------------------
       medio_consentimiento: body?.fuente || "web-form",
       ip_consentimiento: ip,
-      user_agent: userAgent,
+      user_agent: userAgentLimpio, // <-- USAMOS EL STRING LIMPIO
       fecha_consentimiento: fechaConsentimiento,
       tipo_suscripcion: "premium",
     };
