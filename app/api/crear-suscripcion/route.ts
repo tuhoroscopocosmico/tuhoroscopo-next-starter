@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     // ===========================================
     // === LECTURA DE VARIABLES DE ENTORNO ===
     // ===========================================
-    const EDGE_BASE = process.env.EDGE_BASE; // ej: https://[ref].supabase.co/functions/v1
+    const EDGE_BASE = process.env.SUPABASE_URL; // ej: https://[ref].supabase.co/functions/v1
     const SRK = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!EDGE_BASE || !SRK) {
