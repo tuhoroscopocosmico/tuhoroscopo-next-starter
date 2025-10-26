@@ -2,6 +2,7 @@
 // === Archivo: app/checkout/CheckoutContent.tsx
 // === Descripción: Client Component con diseño unificado ("Tablero Cósmico").
 // === Refinamientos: Panel único, títulos simplificados, botón vibrante.
+// === VERIFICACIÓN: Asegurar que llama al endpoint unificado /api/iniciar-checkout
 // ============================================================
 'use client';
 
@@ -21,14 +22,18 @@ interface FormData {
 function normalizarUY(num: string): { telefono: string; whatsapp: string } {
     const solo = num.replace(/[^\d]/g, '');
     const sin0 = solo.replace(/^0/, '');
+    // Caso: 091234567 -> 91234567
     if (sin0.length === 8 && solo.startsWith('09')) {
+      // Devolvemos el número *con* 9 dígitos para la DB
       return { telefono: `9${sin0}`, whatsapp: `+5989${sin0}` };
     }
+    // Caso: 91234567 -> 91234567 (ya está bien)
     if (sin0.length === 9 && sin0.startsWith('9')) {
       return { telefono: sin0, whatsapp: `+598${sin0}` };
     }
-    console.warn("Número no normalizado correctamente:", num)
-    return { telefono: sin0, whatsapp: `+598${sin0}` };
+    // Caso fallback o inesperado
+    console.warn("Número WhatsApp no normalizado como se esperaba:", num, "->", { telefono: sin0, whatsapp: `+598${sin0}` })
+    return { telefono: sin0, whatsapp: `+598${sin0}` }; // Devolver algo, aunque puede ser inválido
 }
 
 
@@ -48,6 +53,7 @@ export default function CheckoutContent() {
   ) => {
     const { name, value } = e.target;
     if (name === 'whatsapp') {
+       // Limpiar para mantener solo números, pero permitir que el usuario escriba
        setFormData((prev) => ({ ...prev, [name]: value.replace(/[^\d]/g, '') }));
     } else {
        setFormData((prev) => ({ ...prev, [name]: value }));
@@ -60,11 +66,12 @@ export default function CheckoutContent() {
     setError(null);
   };
 
+  // *** VERIFICAR ESTA FUNCIÓN ***
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
-    // Validaciones
+    // Validaciones (igual que antes)
     if (!acepta) {
       setError('Debes aceptar la Política de Privacidad para continuar.');
       return;
@@ -89,67 +96,70 @@ export default function CheckoutContent() {
          throw new Error('El número de WhatsApp proporcionado no es válido tras normalizar.');
       }
 
-      // Payload para la API
+      // Payload ÚNICO para la nueva API /api/iniciar-checkout
       const payload = {
         nombre: formData.name.trim(),
-        telefono: telefono,
+        telefono: telefono, // Número normalizado
         signo: formData.signo,
-        contenido_preferido: formData.contenidoPreferido,
-        whatsapp: waE164,
+        contenido_preferido: formData.contenidoPreferido, // Nombre backend esperado por alta-suscriptor
+        whatsapp: waE164, // E.164
         pais: 'UY',
         fuente: 'web-vercel-checkout-v2', // Fuente actualizada
-        version_politica: 'v1.0',
-        acepto_politicas: acepta
+        version_politica: 'v1.0', // Nombre consistency (iniciar-checkout lo ajustará si es necesario)
+        acepto_politicas: acepta,
+        // Añadimos monto y moneda porque iniciar-checkout los necesita para pasarlos
+        monto: 390,
+        moneda: 'UYU'
       };
 
-      // --- Llamadas API Secuenciales ---
-      console.log('Intentando dar de alta al usuario:', payload);
-      const altaResponse = await fetch('/api/alta-suscriptor', {
+      // --- Llamada a la API Unificada ---
+      console.log('>>> LLAMANDO A /api/iniciar-checkout con payload:', payload); // Log específico
+
+      // *** ASEGÚRATE QUE ESTA ES LA URL CORRECTA ***
+      const response = await fetch('/api/iniciar-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (!altaResponse.ok) {
-        const errorData = await altaResponse.json().catch(() => ({ message: 'Error de red o respuesta inválida al registrar.' }));
-        throw new Error(errorData.message || 'Hubo un problema al registrar tus datos.');
+      console.log('/api/iniciar-checkout status:', response.status); // Log status
+
+      if (!response.ok) {
+        let errorData = { message: 'Hubo un problema al iniciar el proceso.' }; // Default
+        try {
+            errorData = await response.json();
+            console.error('Error en /api/iniciar-checkout (respuesta JSON):', errorData);
+        } catch (jsonError) {
+            const errorText = await response.text();
+            console.error('Error en /api/iniciar-checkout (respuesta no JSON):', errorText);
+            // Usar el texto si existe, sino el mensaje de errorData (más genérico) o el de jsonError
+             errorData.message = errorText || errorData.message || (jsonError as Error).message;
+        }
+        // Lanzamos el error con el mensaje obtenido
+        throw new Error(errorData.message);
       }
 
-      const altaResult = await altaResponse.json();
-      const userId = altaResult.userId || altaResult.id_suscriptor;
-      console.log('Usuario creado/actualizado con ID:', userId);
-
-      if (!userId) {
-        throw new Error('No se recibió el ID de usuario tras el registro.');
-      }
-
-      console.log('Creando preferencia de Mercado Pago para userId:', userId);
-      const preferenceResponse = await fetch('/api/crear-suscripcion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userId, price: 390 }),
-      });
-
-      if (!preferenceResponse.ok) {
-        const errorData = await preferenceResponse.json().catch(() => ({ message: 'Error de red o respuesta inválida al crear preferencia.' }));
-        throw new Error(errorData.message || 'Hubo un problema al iniciar el proceso de pago.');
-      }
-
-      const { init_point } = await preferenceResponse.json();
-      console.log('Preferencia creada, redirigiendo a:', init_point);
+      // --- Redirección ---
+      const result = await response.json();
+      // Esperamos que la API unificada devuelva la respuesta de crear-suscripcion
+      const init_point = result?.init_point;
+      console.log('Proceso exitoso con /api/iniciar-checkout, redirigiendo a:', init_point);
 
       if (init_point) {
         window.location.href = init_point;
       } else {
+        console.error("Error crítico: /api/iniciar-checkout OK pero no devolvió init_point. Respuesta:", result);
         throw new Error('No se recibió la URL de pago de Mercado Pago.');
       }
     } catch (err: any) {
-      console.error('Error en handleSubmit:', err);
+      console.error('Error capturado en handleSubmit:', err);
       setError(err.message || 'Ocurrió un error inesperado. Verifica tus datos e intenta de nuevo.');
       setIsLoading(false);
     }
   };
 
+
+  // --- RESTO DEL JSX (SIN CAMBIOS) ---
   return (
     <div className="mx-auto max-w-6xl">
       {/* Encabezado Principal */}
@@ -162,19 +172,15 @@ export default function CheckoutContent() {
         </p>
       </div>
 
-      {/* *** Panel Central Unificado ("Tablero Cósmico") *** */}
+      {/* Panel Central Unificado */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-10 backdrop-blur-sm shadow-xl">
-          {/* Mantenemos el grid de dos columnas DENTRO del panel único */}
           <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
-
-                  {/* --- Columna Izquierda: Formulario --- */}
-                  <div className="space-y-6"> {/* Espaciado entre título y campos */}
-                      {/* Título simplificado para la columna */}
+                  {/* Columna Izquierda: Formulario */}
+                  <div className="space-y-6">
                       <h2 className="text-xl font-semibold text-white">
                           Completa tus datos
                       </h2>
-                      {/* Componente con los campos del formulario */}
                       <LeadFormFields
                           formData={formData}
                           handleInputChange={handleInputChange}
@@ -184,16 +190,14 @@ export default function CheckoutContent() {
                       />
                   </div>
 
-                  {/* --- Columna Derecha: Resumen y Botón --- */}
-                  <div className="space-y-6"> {/* Espaciado entre título y contenido */}
-                       {/* Título simplificado para la columna */}
+                  {/* Columna Derecha: Resumen y Botón */}
+                  <div className="space-y-6">
                       <h2 className="text-xl font-semibold text-white md:text-center">
                           Tu Suscripción Premium
                       </h2>
-                      {/* Resumen del Plan */}
                       <SubscriptionSummary />
 
-                      {/* Mensaje de Error (oculto por defecto) */}
+                      {/* Mensaje de Error */}
                       {error && (
                           <p className="mt-4 text-center text-rose-300 text-sm px-4">{error}</p>
                       )}
@@ -203,7 +207,6 @@ export default function CheckoutContent() {
                           <button
                               type="submit"
                               disabled={isLoading}
-                              // *** Estilo Vibrante para el botón ***
                               className={`w-full px-8 py-4 rounded-xl text-lg font-bold transition-all duration-300 ease-in-out flex items-center justify-center ${
                                   isLoading
                                   ? 'bg-purple-400/50 text-white/70 cursor-not-allowed'
