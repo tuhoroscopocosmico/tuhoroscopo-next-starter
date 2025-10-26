@@ -1,173 +1,148 @@
-// components/LeadForms.tsx
-'use client'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { FormEvent, useEffect, useState } from 'react'
-import ReactCountryFlag from "react-country-flag";
+// ============================================================
+// === Archivo: components/LeadFormFields.tsx
+// === Descripción: Componente "tonto" que renderiza los campos
+// === del formulario, con estilos ajustados para mayor fidelidad.
+// ============================================================
+'use client';
 
-// ===========================================
-// === CONSTANTES (SIN CAMBIOS) ===
-// ===========================================
-const signos = [ { value: 'Aries', label: '🐏 Aries' }, { value: 'Tauro', label: '🐂 Tauro' }, { value: 'Géminis', label: '👯‍♂️ Géminis' }, { value: 'Cáncer', label: '🦀 Cáncer' }, { value: 'Leo', label: '🦁 Leo' }, { value: 'Virgo', label: '🌸 Virgo' }, { value: 'Libra', label: '⚖️ Libra' }, { value: 'Escorpio', label: '🦂 Escorpio' }, { value: 'Sagitario', label: '🏹 Sagitario' }, { value: 'Capricornio', label: '🐐 Capricornio' }, { value: 'Acuario', label: '🌊 Acuario' }, { value: 'Piscis', label: '🐟 Piscis' }, ];
-const preferencias = [ { value: 'general', label: '🌌 General (un poco de todo)' }, { value: 'amor', label: '💘 Amor' }, { value: 'trabajo', label: '💼 Dinero y trabajo' }, { value: 'bienestar', label: '🧘 Bienestar' }, { value: 'espiritual', label: '🪄 Energía espiritual' }, ];
+import React from 'react';
+import { Sparkles, Bot, Phone, ChevronDown } from 'lucide-react';
 
-type Initial = { nombre?: string; signo?: string; preferencia?: string; whatsapp?: string; whatsappLocal?: string }
-type Props = { initial?: Initial }
+interface FormData {
+  name: string;
+  signo: string;
+  contenidoPreferido: string;
+  whatsapp: string;
+}
 
-export default function LeadForm({ initial }: Props) {
-  const router = useRouter()
-  const params = useSearchParams()
+interface LeadFormFieldsProps {
+  formData: FormData;
+  handleInputChange: (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => void;
+  isLoading: boolean;
+}
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+const signosZodiacales = [
+  'Aries', 'Tauro', 'Géminis', 'Cáncer', 'Leo', 'Virgo',
+  'Libra', 'Escorpio', 'Sagitario', 'Capricornio', 'Acuario', 'Piscis'
+];
 
-  const [nombre, setNombre] = useState('')
-  const [signo, setSigno] = useState('')
-  const [pref, setPref] = useState(preferencias[0].value)
-  const [whatsapp, setWhatsapp] = useState('')
-  const [acepta, setAcepta] = useState(false)
+const contenidoOpciones = [
+ { value: 'amor', label: 'Amor y Relaciones' },
+ { value: 'carrera', label: 'Carrera y Finanzas' },
+ { value: 'bienestar', label: 'Bienestar y Crecimiento Personal' },
+ { value: 'todo', label: '¡Todo!' },
+ // { value: 'general', label: 'General (un poco de todo)' }, // Descomenta si necesitas esta opción
+];
 
-  // ===========================================
-  // === HOOKS Y HELPERS (SIN CAMBIOS) ===
-  // ===========================================
-  useEffect(() => { if (initial?.nombre) setNombre(initial.nombre); if (initial?.signo) setSigno(initial.signo); if (initial?.preferencia) setPref(initial.preferencia); if (initial?.whatsappLocal) { setWhatsapp(initial.whatsappLocal); } else if (initial?.whatsapp) { const solo = initial.whatsapp.replace(/[^\d]/g, ''); setWhatsapp(solo.startsWith('598') ? `0${solo.slice(3)}` : solo); } }, [initial])
-  useEffect(() => { if (params.get('from') === 'planes') setAcepta(true); }, [params])
-  function normalizarUY(num: string) { const solo = num.replace(/[^\d]/g, ''); const sin0 = solo.replace(/^0/, ''); return { telefono: sin0, whatsapp: `+598${sin0}` } }
 
-  // ===========================================
-  // === onSubmit (MODIFICADO A "FIRE AND FORGET") ===
-  // ===========================================
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError(null)
+export default function LeadFormFields({
+  formData,
+  handleInputChange,
+  isLoading,
+}: LeadFormFieldsProps) {
 
-    // Validaciones (sin cambios)
-    if (!acepta) { setError('Debés aceptar la Política de Privacidad.'); return }
-    if (!nombre || !signo || !whatsapp) { setError('Completá todos los campos.'); return }
-    const telSolo = whatsapp.replace(/[^\d]/g, '')
-    if (!/^09\d{7}$/.test(telSolo)) {
-      setError('El número debe comenzar con 09 y tener 9 dígitos (ej: 099123456).')
-      return
-    }
-
-    setLoading(true); // Mostramos loading, aunque redirigimos rápido
-
-    try {
-      const { telefono, whatsapp: waE164 } = normalizarUY(whatsapp)
-
-      const payload = {
-        nombre: nombre.trim(),
-        telefono,
-        signo,
-        contenido_preferido: pref,
-        whatsapp: waE164,
-        pais: 'UY',
-        fuente: 'web-vercel',
-        version_politica: 'v1.0',
-        acepto_politicas: acepta
-      }
-
-      // ===========================================
-      // === LÓGICA DE REGISTRO ASÍNCRONO ===
-      // ===========================================
-
-      // 1. Guardamos los datos iniciales (sin id_suscriptor)
-      const datosIniciales = {
-        nombre: payload.nombre,
-        whatsapp: payload.whatsapp,
-        whatsappLocal: `0${telefono}`,
-        signo: payload.signo,
-        contenido_preferido: payload.contenido_preferido,
-      };
-      sessionStorage.setItem('registro', JSON.stringify(datosIniciales));
-
-      // 2. Redirigimos INMEDIATAMENTE
-      router.push('/planes');
-
-      // 3. Ejecutamos el alta en SEGUNDO PLANO
-      // (No usamos 'await' para no bloquear la redirección)
-      fetch('/api/alta-suscriptor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-        .then(async res => {
-          // ===========================================
-          // === MANEJO DE RESPUESTA EN 2DO PLANO ===
-          // ===========================================
-          // Esto se ejecuta *después* de que el usuario ya está en /planes
-          if (!res.ok) {
-            // Si falló, guardamos el error en sessionStorage
-            const errorData = await res.json().catch(() => ({}));
-            console.error('Error en /alta-suscriptor (segundo plano):', errorData);
-            sessionStorage.setItem('registro', JSON.stringify({
-              ...datosIniciales,
-              error_backend: errorData.mensaje || `Error ${res.status}`
-            }));
-            return;
-          }
-
-          const data = await res.json();
-          const id_suscriptor = data.id_suscriptor;
-
-          if (id_suscriptor) {
-            // ¡ÉXITO! Actualizamos sessionStorage con el ID
-            console.log(`[LeadForm] ID ${id_suscriptor} obtenido en 2do plano.`);
-            sessionStorage.setItem('registro', JSON.stringify({
-              ...datosIniciales,
-              id_suscriptor: id_suscriptor,
-              resultado: data.resultado,
-              mensaje: data.mensaje,
-            }));
-          } else {
-            // La API dio OK pero no devolvió ID (error raro)
-            console.error('Error: /alta-suscriptor OK pero no devolvió id_suscriptor', data);
-            sessionStorage.setItem('registro', JSON.stringify({
-              ...datosIniciales,
-              error_backend: "Alta OK, pero ID no recibido."
-            }));
-          }
-        })
-        .catch(err => {
-          // Error de red
-          console.error('Error de red en /alta-suscriptor (segundo plano):', err);
-          sessionStorage.setItem('registro', JSON.stringify({
-            ...datosIniciales,
-            error_backend: err.message || 'Error de red'
-          }));
-        });
-
-    } catch (err) {
-      // Este catch es solo para errores *antes* del fetch (ej. normalizarUY)
-      console.error(err)
-      setError('Ocurrió un error. Probá de nuevo.')
-      setLoading(false);
-    }
-    // No ponemos setLoading(false) porque ya hemos redirigido
-  }
+  // Clases base para inputs y selects, buscando el estilo de image_7f32e5.png
+  const inputBaseClasses = "w-full py-3 bg-[#2c2347] border border-transparent rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400 disabled:opacity-50";
+  const selectBaseClasses = `${inputBaseClasses} appearance-none`; // Añade appearance-none para selects
 
   return (
-    <form
-      id="form"
-      onSubmit={onSubmit}
-      className="mx-auto mt-10 w-full max-w-xl rounded-3xl bg-white/10 p-6 md:p-8 shadow-2xl ring-1 ring-white/15 backdrop-blur"
-    >
-      {/* ... (Resto del JSX del formulario sin cambios) ... */}
-      <h2 className="text-center text-2xl md:text-3xl font-bold mb-8 text-white drop-shadow-sm"> Empezá tu experiencia premium </h2>
-      <label className="block text-sm text-white/80 mb-1">Nombre</label>
-      <input className="mb-4 w-full rounded-xl bg-white/8 px-4 py-3 ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-pink-300" placeholder="Tu nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
-      <label className="block text-sm text-white/80 mb-1">Tu signo</label>
-      <select className="mb-4 w-full rounded-xl bg-white/8 px-4 py-3 ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-pink-300" value={signo} onChange={(e) => setSigno(e.target.value)} required > <option value="" disabled>✨ Seleccioná tu signo</option> {signos.map((s) => ( <option key={s.value} value={s.value}> {s.label} </option> ))} </select>
-      <label className="block text-sm text-white/80 mb-1">Contenido preferido</label>
-      <select className="mb-4 w-full rounded-xl bg-white/8 px-4 py-3 ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-pink-300" value={pref} onChange={(e) => setPref(e.target.value)} required > {preferencias.map(p => <option key={p.value} value={p.value}>{p.label}</option>)} </select>
-      <label className="block text-sm text-white/80 mb-1">Número de WhatsApp (celular) </label>
-      <div className="flex gap-2 items-center">
-        <div className="flex items-center gap-2 rounded-xl bg-white/8 px-3 ring-1 ring-white/15 h-[52px]"> <ReactCountryFlag countryCode="UY" svg style={{ width: "24px", height: "18px", borderRadius: "2px" }} title="Uruguay" className="shadow-sm" /> <span className="text-white/70 font-medium tracking-wide">+598</span> </div>
-        <input className="flex-1 rounded-xl bg-white/8 px-4 py-3 h-[52px] ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-pink-300 placeholder:text-white/40" placeholder="099123456" inputMode="numeric" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value.replace(/[^\d]/g, ''))} required />
+    <div className="space-y-5">
+      {/* Campo Nombre */}
+      <div>
+        <label htmlFor="name" className="block text-sm font-medium text-white/80 mb-1">
+          Nombre
+        </label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          value={formData.name}
+          onChange={handleInputChange}
+          disabled={isLoading}
+          required
+          placeholder="Tu nombre"
+          // Aplica clases base + padding específico
+          className={`${inputBaseClasses} px-4`}
+        />
       </div>
-      <label className="mt-4 flex items-start gap-2 text-sm text-white/80"> <input type="checkbox" checked={acepta} onChange={() => setAcepta(a => !a)} required className="mt-1" /> <span> Acepto la{' '} <a className="underline hover:text-pink-300" href="/politica-de-privacidad" target="_blank" rel="noreferrer"> Política de Privacidad </a>. </span> </label>
-      {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
-      <button type="submit" disabled={loading} className="mt-6 w-full rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-6 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 disabled:opacity-60" > {loading ? 'Enviando...' : 'Continuar y elegir mi plan'} </button>
-    </form>
-  )
+
+      {/* Campo Signo Zodiacal */}
+      <div className="relative">
+        <label htmlFor="signo" className="block text-sm font-medium text-white/80 mb-1">
+          Tu signo
+        </label>
+         <Sparkles className="absolute left-3 top-9 h-5 w-5 text-white/50 pointer-events-none z-10" />
+        <select
+          id="signo"
+          name="signo"
+          value={formData.signo}
+          onChange={handleInputChange}
+          disabled={isLoading}
+          required
+          // Aplica clases base + padding específico + padding derecho para flecha
+          className={`${selectBaseClasses} pl-10 pr-10`}
+        >
+          <option value="" disabled>Seleccioná tu signo</option>
+          {signosZodiacales.map(signo => (
+            <option key={signo} value={signo}>{signo}</option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-3 top-9 h-5 w-5 text-white/50 pointer-events-none" />
+      </div>
+
+       {/* Campo Contenido Preferido */}
+       <div className="relative">
+        <label htmlFor="contenidoPreferido" className="block text-sm font-medium text-white/80 mb-1">
+          Contenido preferido
+        </label>
+         <Bot className="absolute left-3 top-9 h-5 w-5 text-white/50 pointer-events-none z-10" />
+        <select
+          id="contenidoPreferido"
+          name="contenidoPreferido"
+          value={formData.contenidoPreferido}
+          onChange={handleInputChange}
+          disabled={isLoading}
+          required
+          // Aplica clases base + padding específico + padding derecho para flecha
+           className={`${selectBaseClasses} pl-10 pr-10`}
+        >
+          <option value="" disabled>Selecciona una opción...</option>
+           {contenidoOpciones.map(opcion => (
+            <option key={opcion.value} value={opcion.value}>{opcion.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-3 top-9 h-5 w-5 text-white/50 pointer-events-none" />
+      </div>
+
+      {/* Campo WhatsApp */}
+      <div className="relative">
+        <label htmlFor="whatsapp" className="block text-sm font-medium text-white/80 mb-1">
+          Número de WhatsApp (celular)
+        </label>
+        {/* Contenedor para prefijo e ícono */}
+        <div className="absolute left-3 top-9 flex items-center space-x-2 pointer-events-none z-10">
+           <span className="text-white/50">+598</span>
+           <Phone className="h-5 w-5 text-white/50" />
+        </div>
+        <input
+          type="tel"
+          id="whatsapp"
+          name="whatsapp"
+          value={formData.whatsapp}
+          onChange={handleInputChange}
+          disabled={isLoading}
+          required
+          placeholder="09XXXXXXX"
+          pattern="09\d{7}"
+          title="Ingresa tu celular uruguayo sin el +598 (ej: 091234567)"
+          // Aplica clases base + padding izquierdo mayor + padding derecho estándar
+          className={`${inputBaseClasses} pl-[85px] pr-4`} // Ajusta pl-[85px] si es necesario
+        />
+        <p className="mt-1 text-xs text-white/60">Recibirás los mensajes premium en este número.</p>
+      </div>
+    </div>
+  );
 }
 

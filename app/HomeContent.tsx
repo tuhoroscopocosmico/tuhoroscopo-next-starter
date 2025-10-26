@@ -1,9 +1,13 @@
+// ============================================================
+// === Archivo: app/HomeContent.tsx
+// === Descripción: Componente principal de la Landing Page (Paso 1).
+// === Muestra beneficios, precio y CTAs a /checkout.
+// ============================================================
 "use client";
 
 import Link from "next/link";
 import Logo from "@/components/logo";
-import LeadForm from "@/components/LeadForm";
-import StickyCTA from "@/components/StickyCTA";
+// --- FORMULARIO Y CTA FLOTANTE ELIMINADOS DE LA LANDING ---
 import BenefitsGridLite from "@/components/Benefits/BenefitsGridLite";
 
 export default function HomeContent() {
@@ -32,28 +36,61 @@ export default function HomeContent() {
             Sólo mensajes premium, únicos, directo a tu WhatsApp para arrancar tu día con claridad y buena energía.
           </p>
 
-          {/* Primer bloque */}
+          {/* Primer bloque de beneficios */}
           <BenefitsGridLite start={0} end={6} />
 
+          {/* =========================================== */}
+          {/* === CTA MODIFICADO (APUNTA A /checkout) === */}
+          {/* =========================================== */}
           <div className="mt-10 text-center">
-            <a
-              href="#form"
+            <Link
+              href="/checkout" // <-- CAMBIADO: Apunta a /checkout
               className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-7 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300"
             >
-              Comenzar mi experiencia
-            </a>
+              Suscribirme ahora por $U 390
+            </Link>
           </div>
 
-          {/* Segundo bloque (3 items centrados) */}
-          <BenefitsGridLite start={6} end={9} />
-        </section>
+          {/* =========================================== */}
+          {/* === NUEVO BLOQUE DE PRECIO === */}
+          {/* =========================================== */}
+          <div className="mx-auto max-w-sm mt-16 mb-12">
+            <div className="rounded-2xl bg-cosmic-surface/70 border border-white/10 p-6 shadow-glow backdrop-blur-sm text-center">
+              <h3 className="text-2xl font-bold text-white">
+                Suscripción premium mensual
+              </h3>
+              <div className="my-4">
+                <span className="text-4xl font-extrabold text-white">$U 390</span>
+                <span className="text-white/80 font-semibold ml-1">/mes</span>
+              </div>
+              <p className="text-white/70 text-sm">
+                Sin ataduras. Cancelá cuando quieras.
+              </p>
+            </div>
+          </div>
+          {/* =========================================== */}
 
-        {/* FORM */}
-        <section id="form" className="mx-auto max-w-6xl px-4 pb-16">
-          <LeadForm />
-          <StickyCTA />
+          {/* Segundo bloque de beneficios */}
+          <BenefitsGridLite start={6} end={9} />
+
+          {/* =========================================== */}
+          {/* === CTA REPETIDO (FINAL) === */}
+          {/* =========================================== */}
+          <div className="mt-10 mb-16 text-center">
+            <Link
+              href="/checkout" // <-- CAMBIADO: Apunta a /checkout
+              className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-7 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300"
+            >
+              Suscribirme ahora por $U 390
+            </Link>
+          </div>
+
         </section>
+        
+        {/* La sección del formulario ha sido eliminada */}
+        
       </main>
     </div>
   );
 }
+

@@ -1,3 +1,4 @@
+// app/registro/page.tsx
 export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
