@@ -1,238 +1,319 @@
-// ============================================================
-// === Archivo: app/checkout/CheckoutContent.tsx
-// === Descripción: Client Component con diseño unificado ("Tablero Cósmico").
-// === Refinamientos: Panel único, títulos simplificados, botón vibrante.
-// === VERIFICACIÓN: Asegurar que llama al endpoint unificado /api/iniciar-checkout
-// ============================================================
-'use client';
+"use client";
 
-import { useState, FormEvent, ChangeEvent } from 'react';
-import { Loader2 } from 'lucide-react';
-import LeadFormFields from '@/components/LeadFormFields';
-import SubscriptionSummary from '@/components/SubscriptionSummary';
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import confetti from "canvas-confetti";
 
-interface FormData {
-  name: string;
-  signo: string;
-  contenidoPreferido: string;
-  whatsapp: string;
-}
+type AnyDict = Record<string, any>;
 
-// Helper para normalizar WhatsApp
-function normalizarUY(num: string): { telefono: string; whatsapp: string } {
-    const solo = num.replace(/[^\d]/g, '');
-    const sin0 = solo.replace(/^0/, '');
-    // Caso: 091234567 -> 91234567
-    if (sin0.length === 8 && solo.startsWith('09')) {
-      // Devolvemos el número *con* 9 dígitos para la DB
-      return { telefono: `9${sin0}`, whatsapp: `+5989${sin0}` };
-    }
-    // Caso: 91234567 -> 91234567 (ya está bien)
-    if (sin0.length === 9 && sin0.startsWith('9')) {
-      return { telefono: sin0, whatsapp: `+598${sin0}` };
-    }
-    // Caso fallback o inesperado
-    console.warn("Número WhatsApp no normalizado como se esperaba:", num, "->", { telefono: sin0, whatsapp: `+598${sin0}` })
-    return { telefono: sin0, whatsapp: `+598${sin0}` }; // Devolver algo, aunque puede ser inválido
-}
-
-
-export default function CheckoutContent() {
-  const [formData, setFormData] = useState<FormData>({
-    name: '',
-    signo: '',
-    contenidoPreferido: '',
-    whatsapp: '',
-  });
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [acepta, setAcepta] = useState<boolean>(false);
-
-  const handleInputChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    if (name === 'whatsapp') {
-       // Limpiar para mantener solo números, pero permitir que el usuario escriba
-       setFormData((prev) => ({ ...prev, [name]: value.replace(/[^\d]/g, '') }));
-    } else {
-       setFormData((prev) => ({ ...prev, [name]: value }));
-    }
-    setError(null);
-  };
-
-  const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setAcepta(e.target.checked);
-    setError(null);
-  };
-
-  // *** VERIFICAR ESTA FUNCIÓN ***
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-
-    // Validaciones (igual que antes)
-    if (!acepta) {
-      setError('Debes aceptar la Política de Privacidad para continuar.');
-      return;
-    }
-    if (!formData.name.trim() || !formData.signo || !formData.contenidoPreferido || !formData.whatsapp.trim()) {
-      setError('Por favor, completa todos los campos.');
-      return;
-    }
-    const whatsappSanitized = formData.whatsapp.replace(/\s+/g, '');
-    const whatsappRegex = /^09\d{7}$/;
-    if (!whatsappRegex.test(whatsappSanitized)) {
-       setError('El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099123456).');
-       return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const { telefono, whatsapp: waE164 } = normalizarUY(whatsappSanitized);
-      if (!telefono || telefono.length !== 9 || !telefono.startsWith('9')) {
-         console.error("Error post-normalización:", {telefono, waE164});
-         throw new Error('El número de WhatsApp proporcionado no es válido tras normalizar.');
-      }
-
-      // Payload ÚNICO para la nueva API /api/iniciar-checkout
-      const payload = {
-        nombre: formData.name.trim(),
-        telefono: telefono, // Número normalizado
-        signo: formData.signo,
-        contenido_preferido: formData.contenidoPreferido, // Nombre backend esperado por alta-suscriptor
-        whatsapp: waE164, // E.164
-        pais: 'UY',
-        fuente: 'web-vercel-checkout-v2', // Fuente actualizada
-        version_politica: 'v1.0', // Nombre consistency (iniciar-checkout lo ajustará si es necesario)
-        acepto_politicas: acepta,
-        // Añadimos monto y moneda porque iniciar-checkout los necesita para pasarlos
-        monto: 390,
-        moneda: 'UYU'
-      };
-
-      // --- Llamada a la API Unificada ---
-      console.log('>>> LLAMANDO A /api/iniciar-checkout con payload:', payload); // Log específico
-
-      // *** ASEGÚRATE QUE ESTA ES LA URL CORRECTA ***
-      const response = await fetch('/api/iniciar-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      console.log('/api/iniciar-checkout status:', response.status); // Log status
-
-      if (!response.ok) {
-        let errorData = { message: 'Hubo un problema al iniciar el proceso.' }; // Default
-        try {
-            errorData = await response.json();
-            console.error('Error en /api/iniciar-checkout (respuesta JSON):', errorData);
-        } catch (jsonError) {
-            const errorText = await response.text();
-            console.error('Error en /api/iniciar-checkout (respuesta no JSON):', errorText);
-            // Usar el texto si existe, sino el mensaje de errorData (más genérico) o el de jsonError
-             errorData.message = errorText || errorData.message || (jsonError as Error).message;
-        }
-        // Lanzamos el error con el mensaje obtenido
-        throw new Error(errorData.message);
-      }
-
-      // --- Redirección ---
-      const result = await response.json();
-      // Esperamos que la API unificada devuelva la respuesta de crear-suscripcion
-      const init_point = result?.init_point;
-      console.log('Proceso exitoso con /api/iniciar-checkout, redirigiendo a:', init_point);
-
-      if (init_point) {
-        window.location.href = init_point;
-      } else {
-        console.error("Error crítico: /api/iniciar-checkout OK pero no devolvió init_point. Respuesta:", result);
-        throw new Error('No se recibió la URL de pago de Mercado Pago.');
-      }
-    } catch (err: any) {
-      console.error('Error capturado en handleSubmit:', err);
-      setError(err.message || 'Ocurrió un error inesperado. Verifica tus datos e intenta de nuevo.');
-      setIsLoading(false);
-    }
-  };
-
-
-  // --- RESTO DEL JSX (SIN CAMBIOS) ---
+// Componente visual para un ícono de check (Éxito)
+function CheckIcon() {
   return (
-    <div className="mx-auto max-w-6xl">
-      {/* Encabezado Principal */}
-      <div className="text-center mb-10">
-        <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-          Estás a un paso ✨
-        </h1>
-        <p className="text-white/70">
-          Completa tus datos y confirma tu suscripción premium.
-        </p>
-      </div>
-
-      {/* Panel Central Unificado */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-10 backdrop-blur-sm shadow-xl">
-          <form onSubmit={handleSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
-                  {/* Columna Izquierda: Formulario */}
-                  <div className="space-y-6">
-                      <h2 className="text-xl font-semibold text-white">
-                          Completa tus datos
-                      </h2>
-                      <LeadFormFields
-                          formData={formData}
-                          handleInputChange={handleInputChange}
-                          isLoading={isLoading}
-                          acepta={acepta}
-                          handleCheckboxChange={handleCheckboxChange}
-                      />
-                  </div>
-
-                  {/* Columna Derecha: Resumen y Botón */}
-                  <div className="space-y-6">
-                      <h2 className="text-xl font-semibold text-white md:text-center">
-                          Tu Suscripción Premium
-                      </h2>
-                      <SubscriptionSummary />
-
-                      {/* Mensaje de Error */}
-                      {error && (
-                          <p className="mt-4 text-center text-rose-300 text-sm px-4">{error}</p>
-                      )}
-
-                      {/* Botón de Pago Unificado */}
-                      <div className="mt-6 mx-auto max-w-xl text-center">
-                          <button
-                              type="submit"
-                              disabled={isLoading}
-                              className={`w-full px-8 py-4 rounded-xl text-lg font-bold transition-all duration-300 ease-in-out flex items-center justify-center ${
-                                  isLoading
-                                  ? 'bg-purple-400/50 text-white/70 cursor-not-allowed'
-                                  : 'bg-gradient-to-r from-amber-400 to-pink-400 text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:ring-offset-2 focus:ring-offset-black/50 disabled:opacity-60'
-                              }`}
-                          >
-                              {isLoading ? (
-                                  <>
-                                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                      Procesando pago...
-                                  </>
-                              ) : (
-                                  'Confirmar y pagar $U 390'
-                              )}
-                          </button>
-                          {!isLoading && (
-                              <p className="text-white/55 text-xs mt-3 px-4">
-                                  Serás redirigido a Mercado Pago para finalizar de forma segura.
-                              </p>
-                          )}
-                      </div>
-                  </div>
-              </div>
-          </form>
-      </div>
-    </div>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-16 h-16 text-emerald-400"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
   );
 }
 
+// Componente visual para un ícono de reloj (Pendiente)
+function ClockIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-16 h-16 text-amber-400"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
+// Componente visual para un ícono de error (Error)
+function ErrorIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-16 h-16 text-rose-500"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+      />
+    </svg>
+  );
+}
+
+export default function GraciasContent() {
+  const sp = useSearchParams();
+
+  // ─────────────────────────────────────────────────────────────
+  // TODA LA LÓGICA DE DIAGNÓSTICO SE MANTIENE
+  // ─────────────────────────────────────────────────────────────
+  const allParams = useMemo(() => {
+    const obj: AnyDict = {};
+    try {
+      for (const [k, v] of Array.from(sp.entries())) {
+        if (obj[k] === undefined) obj[k] = v;
+        else obj[k] = Array.isArray(obj[k]) ? [...obj[k], v] : [obj[k], v];
+      }
+    } catch (_) {}
+    return obj;
+  }, [sp]);
+
+  const id = (allParams.id_suscriptor ?? allParams.id ?? "") as string;
+  const preapproval_id = (
+    allParams.preapproval_id ?? allParams.preapproval ?? ""
+  ) as string;
+  const status = (allParams.status ?? allParams.collection_status ?? "") as string;
+
+  const envSnapshot = useMemo(
+    () => ({
+      href: typeof window !== "undefined" ? window.location.href : "",
+    }),
+    []
+  );
+
+  const [uiStatus, setUiStatus] = useState<"idle" | "ok" | "warn" | "error">(
+    "idle"
+  );
+  const [nombre, setNombre] = useState<string | null>(null); // <-- 1. AÑADIDO ESTADO PARA EL NOMBRE
+
+  // Reporte para enviar a la API de logs
+  const report: AnyDict = {
+    message: "BackURL recibido en /gracias (página de USUARIO)",
+    params_crudos: allParams,
+    campos: { id_suscriptor: id, preapproval_id, status },
+    entorno: envSnapshot,
+  };
+
+  // <-- 2. AÑADIDO USEEFFECT PARA LEER LOCALSTORAGE
+  // Efecto para leer el nombre desde localStorage
+  useEffect(() => {
+    try {
+      // Revisa si este 'key' es el correcto que usaste al guardar
+      const nombreGuardado = localStorage.getItem("thc_nombre_suscriptor");
+      if (nombreGuardado) {
+        setNombre(nombreGuardado);
+      }
+    } catch (e) {
+      // No es un error crítico, solo un warning en consola
+      console.warn("No se pudo leer el nombre desde localStorage", e);
+    }
+  }, []); // El array vacío asegura que se ejecute solo una vez
+
+  useEffect(() => {
+    async function procesarBackUrl() {
+      // 1) Validación mínima
+      if (!id || !preapproval_id) {
+        setUiStatus("error"); // Faltan params, mostramos error
+        return;
+      }
+
+      // 2) Enviar log al servidor (en segundo plano)
+      try {
+        fetch("/api/log-backurl", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tipo: "BACKURL_MP_USUARIO", ...report }),
+        });
+      } catch (e) {}
+
+      // 3) Normalizar status
+      const statusNorm = String(status || "").toLowerCase().trim();
+
+      // Estados positivos
+      const positivos = ["authorized", "approved", "success", "active"];
+      const esPositivo = positivos.includes(statusNorm) || statusNorm === "";
+
+      if (esPositivo) {
+        // Intento activar premium provisorio
+        try {
+          const r = await fetch("/api/activar-premium-provisorio", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id_suscriptor: id,
+              preapproval_id,
+              backParams: { ...allParams, ...envSnapshot },
+            }),
+          });
+          const j = await r.json().catch(() => ({}));
+
+          if (r.ok && j?.ok) {
+            setUiStatus("ok");
+            lanzarConfeti();
+          } else {
+            setUiStatus("warn"); // Falló la activación, queda pendiente
+          }
+        } catch (e: any) {
+          setUiStatus("error"); // Error de red
+        }
+        return;
+      }
+
+      // 4) Estados pendientes
+      if (statusNorm === "pending" || statusNorm === "in_process") {
+        setUiStatus("warn");
+        return;
+      }
+
+      // 5) Otros estados (rechazado, fallido, etc.)
+      setUiStatus("error");
+    }
+
+    procesarBackUrl();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────
+  // UI HELPER: FUNCIÓN DE CONFETI
+  // ─────────────────────────────────────────────────────────────
+  function lanzarConfeti() {
+    const duration = 3000;
+    const end = Date.now() + duration;
+    (function frame() {
+      confetti({ particleCount: 8, angle: 60, spread: 80, origin: { x: 0 } });
+      confetti({ particleCount: 8, angle: 120, spread: 80, origin: { x: 1 } });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    })();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // NUEVO RETURN (UI PARA EL USUARIO)
+  // ─────────────────────────────────────────────────────────────
+  return (
+    <div className="mx-auto max-w-2xl p-4 py-16 sm:py-24 text-center text-white">
+      {/* Mientras uiStatus === 'idle', el Suspense de page.tsx 
+        muestra "Cargando...".
+        Solo renderizamos cuando tenemos un estado final.
+      */}
+
+      {/* ===== DISEÑO 1: EL CAMINO FELIZ ===== */}
+      {uiStatus === "ok" && (
+        <div className="space-y-6 flex flex-col items-center">
+          <CheckIcon />
+          {/* // <-- 3. MODIFICADO H1 PARA USAR EL NOMBRE */}
+          <h1 className="text-3xl sm:text-4xl font-bold text-white">
+            ¡Felicitaciones{nombre ? `, ${nombre}` : ""}! Tu suscripción está
+            activa.
+          </h1>
+          <p className="text-lg text-slate-300">
+            Acabamos de enviarte tu primer mensaje de bienvenida. Estás a punto
+            de recibir la mejor energía del universo.
+          </p>
+
+          {/* ONBOARDING */}
+          <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-left space-y-5">
+            <h2 className="text-xl font-semibold text-white">
+              Pasos siguientes:
+            </h2>
+
+            <div className="flex items-start gap-3">
+              <div className="font-bold text-2xl text-indigo-400 pt-0.5">1.</div>
+              <p className="text-base">
+                <strong>Revisá tu WhatsApp.</strong> Ya deberías tener nuestro
+                mensaje en el número que registraste.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="font-bold text-2xl text-indigo-400 pt-0.5">2.</div>
+              <p className="text-base">
+                <strong>¡Agréganos a tus contactos!</strong> Este es el paso más
+                importante para asegurar que siempre recibas nuestros mensajes y
+                audios.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="font-bold text-2xl text-indigo-400 pt-0.5">3.</div>
+              <p className="text-base">
+                <strong>¿No recibiste nada?</strong> Si en 5 minutos no ves
+                nuestro mensaje, escríbenos a{" "}
+                <a
+                  href="mailto:soporte@tuhoroscopo.com" // <-- CAMBIA ESTE EMAIL
+                  className="font-bold underline hover:text-indigo-300"
+                >
+                  soporte@tuhoroscopo.com
+                </a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== DISEÑO 2: PAGO PENDIENTE ===== */}
+      {uiStatus === "warn" && (
+        <div className="space-y-6 flex flex-col items-center">
+          <ClockIcon />
+          <h1 className="text-3xl sm:text-4xl font-bold text-amber-400">
+            Tu pago está pendiente.
+          </h1>
+          <p className="text-lg text-slate-300">
+            No te preocupes, esto es normal. A veces Mercado Pago (o la
+            tarjeta) demora unos minutos en procesar la suscripción.
+          </p>
+          <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-slate-300">
+            <p>
+              Te avisaremos por WhatsApp (al número que registraste) apenas se
+              confirme el pago. No necesitas hacer nada más.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ===== DISEÑO 3: ERROR EN EL PAGO ===== */}
+      {uiStatus === "error" && (
+        <div className="space-y-6 flex flex-col items-center">
+          <ErrorIcon />
+          <h1 className="text-3xl sm:text-4xl font-bold text-rose-500">
+            Ups, ocurrió un error.
+          </h1>
+          <p className="text-lg text-slate-300">
+            No te preocupes, no se realizó ningún cargo en tu tarjeta.
+          </p> {/* // <-- 4. CORREGIDO CIERRE DE ETIQUETA */}
+          <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 space-y-5">
+            <p>
+              Parece que hubo un problema al procesar tu suscripción (el pago
+              pudo ser rechazado o faltaron datos). Por favor, vuelve a
+              intentarlo.
+            </p>
+            <a
+              href="/#checkout" // <-- Ajusta esto a tu página de checkout
+              className="inline-block rounded-lg px-8 py-3 font-bold text-white"
+              style={{
+                // Re-usamos el estilo del botón CTA
+                background: "linear-gradient(90deg, #F5A623 0%, #FF4E6D 100%)",
+              }}
+            >
+              Intentar pagar de nuevo
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
