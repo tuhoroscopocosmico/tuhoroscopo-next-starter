@@ -265,7 +265,7 @@ export default function GraciasContent() {
         </div>
       )}
 
-      {/* ===== DISEÑO 2: PAGO PENDIENTE ===== */}
+      {/* ===== DISEÑO 2: PAGO PENDIENTE =====  */}
       {uiStatus === "warn" && (
         <div className="space-y-6 flex flex-col items-center">
           <ClockIcon />
