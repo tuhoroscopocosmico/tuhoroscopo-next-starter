@@ -1,8 +1,7 @@
 // ============================================================
 // === Archivo: app/checkout/CheckoutContent.tsx
 // === Descripción: Client Component con diseño unificado ("Tablero Cósmico").
-// === Refinamientos: Panel único, títulos simplificados, botón vibrante.
-// === VERIFICACIÓN: Asegurar que llama al endpoint unificado /api/iniciar-checkout
+// ===              Modificado para guardar datos en sessionStorage antes de pagar.
 // ============================================================
 'use client';
 
@@ -18,7 +17,7 @@ interface FormData {
   whatsapp: string;
 }
 
-// Helper para normalizar WhatsApp
+// Helper para normalizar WhatsApp (sin cambios)
 function normalizarUY(num: string): { telefono: string; whatsapp: string } {
     const solo = num.replace(/[^\d]/g, '');
     const sin0 = solo.replace(/^0/, '');
@@ -38,6 +37,7 @@ function normalizarUY(num: string): { telefono: string; whatsapp: string } {
 
 
 export default function CheckoutContent() {
+  // --- Estados (sin cambios) ---
   const [formData, setFormData] = useState<FormData>({
     name: '',
     signo: '',
@@ -48,15 +48,16 @@ export default function CheckoutContent() {
   const [error, setError] = useState<string | null>(null);
   const [acepta, setAcepta] = useState<boolean>(false);
 
+  // --- Handlers (sin cambios) ---
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     if (name === 'whatsapp') {
-       // Limpiar para mantener solo números, pero permitir que el usuario escriba
-       setFormData((prev) => ({ ...prev, [name]: value.replace(/[^\d]/g, '') }));
+      // Limpiar para mantener solo números, pero permitir que el usuario escriba
+      setFormData((prev) => ({ ...prev, [name]: value.replace(/[^\d]/g, '') }));
     } else {
-       setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
     setError(null);
   };
@@ -66,12 +67,12 @@ export default function CheckoutContent() {
     setError(null);
   };
 
-  // *** VERIFICAR ESTA FUNCIÓN ***
+  // --- Función Submit (Modificada) ---
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
-    // Validaciones (igual que antes)
+    // Validaciones (sin cambios)
     if (!acepta) {
       setError('Debes aceptar la Política de Privacidad para continuar.');
       return;
@@ -83,9 +84,25 @@ export default function CheckoutContent() {
     const whatsappSanitized = formData.whatsapp.replace(/\s+/g, '');
     const whatsappRegex = /^09\d{7}$/;
     if (!whatsappRegex.test(whatsappSanitized)) {
-       setError('El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099123456).');
-       return;
+      setError('El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099123456).');
+      return;
     }
+
+    // *** NUEVO: Guardar datos en sessionStorage ANTES de iniciar la carga ***
+    try {
+        const checkoutData = {
+            name: formData.name.trim(),
+            signo: formData.signo,
+            contenidoPreferido: formData.contenidoPreferido,
+            whatsapp: whatsappSanitized // Guardar el número limpio
+        };
+        sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData));
+        console.log('Datos guardados en sessionStorage:', checkoutData);
+    } catch (sessionError) {
+        console.error("Error al guardar en sessionStorage:", sessionError);
+        // Opcional: Podrías decidir si continuar o no si falla sessionStorage
+    }
+    // ************************************************************************
 
     setIsLoading(true);
 
@@ -96,52 +113,47 @@ export default function CheckoutContent() {
          throw new Error('El número de WhatsApp proporcionado no es válido tras normalizar.');
       }
 
-      // Payload ÚNICO para la nueva API /api/iniciar-checkout
+      // Payload ÚNICO para la nueva API /api/iniciar-checkout (sin cambios)
       const payload = {
         nombre: formData.name.trim(),
-        telefono: telefono, // Número normalizado
+        telefono: telefono,
         signo: formData.signo,
-        contenido_preferido: formData.contenidoPreferido, // Nombre backend esperado por alta-suscriptor
-        whatsapp: waE164, // E.164
+        contenido_preferido: formData.contenidoPreferido,
+        whatsapp: waE164,
         pais: 'UY',
-        fuente: 'web-vercel-checkout-v2', // Fuente actualizada
-        version_politica: 'v1.0', // Nombre consistency (iniciar-checkout lo ajustará si es necesario)
+        fuente: 'web-vercel-checkout-v2',
+        version_politica: 'v1.0',
         acepto_politicas: acepta,
-        // Añadimos monto y moneda porque iniciar-checkout los necesita para pasarlos
         monto: 390,
         moneda: 'UYU'
       };
 
-      // --- Llamada a la API Unificada ---
-      console.log('>>> LLAMANDO A /api/iniciar-checkout con payload:', payload); // Log específico
+      // --- Llamada a la API Unificada (sin cambios) ---
+      console.log('>>> LLAMANDO A /api/iniciar-checkout con payload:', payload);
 
-      // *** ASEGÚRATE QUE ESTA ES LA URL CORRECTA ***
       const response = await fetch('/api/iniciar-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      console.log('/api/iniciar-checkout status:', response.status); // Log status
+      console.log('/api/iniciar-checkout status:', response.status);
 
       if (!response.ok) {
-        let errorData = { message: 'Hubo un problema al iniciar el proceso.' }; // Default
+        let errorData = { message: 'Hubo un problema al iniciar el proceso.' };
         try {
-            errorData = await response.json();
-            console.error('Error en /api/iniciar-checkout (respuesta JSON):', errorData);
+          errorData = await response.json();
+          console.error('Error en /api/iniciar-checkout (respuesta JSON):', errorData);
         } catch (jsonError) {
-            const errorText = await response.text();
-            console.error('Error en /api/iniciar-checkout (respuesta no JSON):', errorText);
-            // Usar el texto si existe, sino el mensaje de errorData (más genérico) o el de jsonError
-             errorData.message = errorText || errorData.message || (jsonError as Error).message;
+          const errorText = await response.text();
+          console.error('Error en /api/iniciar-checkout (respuesta no JSON):', errorText);
+          errorData.message = errorText || errorData.message || (jsonError as Error).message;
         }
-        // Lanzamos el error con el mensaje obtenido
         throw new Error(errorData.message);
       }
 
-      // --- Redirección ---
+      // --- Redirección (sin cambios) ---
       const result = await response.json();
-      // Esperamos que la API unificada devuelva la respuesta de crear-suscripcion
       const init_point = result?.init_point;
       console.log('Proceso exitoso con /api/iniciar-checkout, redirigiendo a:', init_point);
 
@@ -155,6 +167,10 @@ export default function CheckoutContent() {
       console.error('Error capturado en handleSubmit:', err);
       setError(err.message || 'Ocurrió un error inesperado. Verifica tus datos e intenta de nuevo.');
       setIsLoading(false);
+      // *** NUEVO: Opcional - Limpiar sessionStorage si falla el submit ***
+      // sessionStorage.removeItem('checkoutData');
+      // console.log('Datos de sessionStorage eliminados por error en submit.');
+      // *******************************************************************
     }
   };
 
@@ -174,63 +190,63 @@ export default function CheckoutContent() {
 
       {/* Panel Central Unificado */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-10 backdrop-blur-sm shadow-xl">
-          <form onSubmit={handleSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
-                  {/* Columna Izquierda: Formulario */}
-                  <div className="space-y-6">
-                      <h2 className="text-xl font-semibold text-white">
-                          Completa tus datos
-                      </h2>
-                      <LeadFormFields
-                          formData={formData}
-                          handleInputChange={handleInputChange}
-                          isLoading={isLoading}
-                          acepta={acepta}
-                          handleCheckboxChange={handleCheckboxChange}
-                      />
-                  </div>
-
-                  {/* Columna Derecha: Resumen y Botón */}
-                  <div className="space-y-6">
-                      <h2 className="text-xl font-semibold text-white md:text-center">
-                          Tu Suscripción Premium
-                      </h2>
-                      <SubscriptionSummary />
-
-                      {/* Mensaje de Error */}
-                      {error && (
-                          <p className="mt-4 text-center text-rose-300 text-sm px-4">{error}</p>
-                      )}
-
-                      {/* Botón de Pago Unificado */}
-                      <div className="mt-6 mx-auto max-w-xl text-center">
-                          <button
-                              type="submit"
-                              disabled={isLoading}
-                              className={`w-full px-8 py-4 rounded-xl text-lg font-bold transition-all duration-300 ease-in-out flex items-center justify-center ${
-                                  isLoading
-                                  ? 'bg-purple-400/50 text-white/70 cursor-not-allowed'
-                                  : 'bg-gradient-to-r from-amber-400 to-pink-400 text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:ring-offset-2 focus:ring-offset-black/50 disabled:opacity-60'
-                              }`}
-                          >
-                              {isLoading ? (
-                                  <>
-                                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                      Procesando pago...
-                                  </>
-                              ) : (
-                                  'Confirmar y pagar $U 390'
-                              )}
-                          </button>
-                          {!isLoading && (
-                              <p className="text-white/55 text-xs mt-3 px-4">
-                                  Serás redirigido a Mercado Pago para finalizar de forma segura.
-                              </p>
-                          )}
-                      </div>
-                  </div>
+        <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
+              {/* Columna Izquierda: Formulario */}
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-white">
+                  Completa tus datos
+                </h2>
+                <LeadFormFields
+                  formData={formData}
+                  handleInputChange={handleInputChange}
+                  isLoading={isLoading}
+                  acepta={acepta}
+                  handleCheckboxChange={handleCheckboxChange}
+                />
               </div>
-          </form>
+
+              {/* Columna Derecha: Resumen y Botón */}
+              <div className="space-y-6">
+                <h2 className="text-xl font-semibold text-white md:text-center">
+                  Tu Suscripción Premium
+                </h2>
+                <SubscriptionSummary />
+
+                {/* Mensaje de Error */}
+                {error && (
+                  <p className="mt-4 text-center text-rose-300 text-sm px-4">{error}</p>
+                )}
+
+                {/* Botón de Pago Unificado */}
+                <div className="mt-6 mx-auto max-w-xl text-center">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className={`w-full px-8 py-4 rounded-xl text-lg font-bold transition-all duration-300 ease-in-out flex items-center justify-center ${
+                      isLoading
+                        ? 'bg-purple-400/50 text-white/70 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-amber-400 to-pink-400 text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:ring-offset-2 focus:ring-offset-black/50 disabled:opacity-60'
+                    }`}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Procesando pago...
+                      </>
+                    ) : (
+                      'Confirmar y pagar $U 390'
+                    )}
+                  </button>
+                  {!isLoading && (
+                    <p className="text-white/55 text-xs mt-3 px-4">
+                      Serás redirigido a Mercado Pago para finalizar de forma segura.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+        </form>
       </div>
     </div>
   );
