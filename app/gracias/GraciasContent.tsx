@@ -221,11 +221,11 @@ export default function GraciasContent() {
 
   // --- Función de Confeti (sin cambios) ---
   function lanzarConfeti() {
-    const duration = 9000;
+    const duration = 8000;
     const end = Date.now() + duration;
     (function frame() {
-      confetti({ particleCount: 10, angle: 60, spread: 80, origin: { x: 0 }, colors: ['#FFC700', '#FF4E6D', '#FFFFFF'] });
-      confetti({ particleCount: 10, angle: 120, spread: 80, origin: { x: 1 }, colors: ['#FFC700', '#FF4E6D', '#FFFFFF'] });
+      confetti({ particleCount: 8, angle: 60, spread: 80, origin: { x: 0 } });
+      confetti({ particleCount: 8, angle: 120, spread: 80, origin: { x: 1 } });
       if (Date.now() < end) requestAnimationFrame(frame);
     })();
   }
