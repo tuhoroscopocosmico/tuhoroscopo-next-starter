@@ -125,9 +125,7 @@ export default function GraciasContent() {
   // Almacena los datos del usuario recuperados de sessionStorage
   const [nombre, setNombre] = useState<string | null>(null);
   const [signo, setSigno] = useState<string | null>(null);
-  // *** AÑADIDO: Estado para guardar el número de WhatsApp ***
   const [whatsapp, setWhatsapp] = useState<string | null>(null);
-  // ********************************************************
 
 
   // Objeto con datos para enviar a la API de logs (sin cambios)
@@ -139,7 +137,7 @@ export default function GraciasContent() {
   };
 
 
-  // --- useEffect para leer datos de sessionStorage (ACTUALIZADO) ---
+  // --- useEffect para leer datos de sessionStorage ---
   // Se ejecuta una sola vez al cargar el componente para personalizar el mensaje.
   useEffect(() => {
     // Usamos try/catch por si sessionStorage no está disponible o falla
@@ -157,11 +155,10 @@ export default function GraciasContent() {
         if (data.signo) {
           setSigno(data.signo);
         }
-        // *** AÑADIDO: Leer y guardar WhatsApp ***
+        // Leer y guardar WhatsApp
         if (data.whatsapp) {
           setWhatsapp(data.whatsapp); // Guardamos el número local (ej: 099...)
         }
-        // **************************************
         console.log("Datos recuperados de sessionStorage:", data);
         // Limpiamos el item para no reutilizarlo si el usuario navega
         sessionStorage.removeItem('checkoutData');
@@ -260,32 +257,12 @@ export default function GraciasContent() {
 
   // --- Función de Confeti (sin cambios) ---
   function lanzarConfeti() {
-    const duration = 8000; // Duración aumentada ligeramente
+    const duration = 8000;
     const end = Date.now() + duration;
-
-    // Función recursiva que se llama con requestAnimationFrame
     (function frame() {
-      // Lanza confeti desde la izquierda
-      confetti({
-        particleCount: 8, // Ajustado
-        angle: 60,
-        spread: 80, // Ajustado
-        origin: { x: 0 },
-        // *** ELIMINADO colors: [...] para usar los colores por defecto ***
-      });
-      // Lanza confeti desde la derecha
-      confetti({
-        particleCount: 8,
-        angle: 120,
-        spread: 80,
-        origin: { x: 1 },
-        // *** ELIMINADO colors: [...] para usar los colores por defecto ***
-      });
-
-      // Si aún no ha pasado la duración, pide el siguiente frame
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
+      confetti({ particleCount: 8, angle: 60, spread: 80, origin: { x: 0 } });
+      confetti({ particleCount: 8, angle: 120, spread: 80, origin: { x: 1 } });
+      if (Date.now() < end) requestAnimationFrame(frame);
     })();
   }
 
@@ -327,17 +304,17 @@ export default function GraciasContent() {
             <h2 className="text-xl font-semibold text-white">
               Pasos siguientes:
             </h2>
-            {/* *** PASO 1 MODIFICADO para incluir WhatsApp *** */}
+            {/* *** PASO 1 MODIFICADO para incluir WhatsApp PARCIAL *** */}
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">1.</div>
               <p className="text-base">
                 <strong>Revisá tu WhatsApp.</strong> Ya deberías tener nuestro
                 mensaje en el número que registraste
-                {/* Mostramos el número si lo tenemos */}
-                {whatsapp ? ` (${whatsapp})` : ""}.
+                {/* Mostramos solo los últimos 3 dígitos si tenemos el número */}
+                {whatsapp ? ` (terminado en ...${whatsapp.slice(-3)})` : ""}.
               </p>
             </div>
-            {/* ******************************************* */}
+            {/* ****************************************************** */}
             {/* Paso 2 (sin cambios) */}
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">2.</div>
