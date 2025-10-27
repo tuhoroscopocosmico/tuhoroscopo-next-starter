@@ -99,7 +99,8 @@ export default function GraciasContent() {
   const [uiStatus, setUiStatus] = useState<"idle" | "ok" | "warn" | "error">(
     "idle"
   );
-  
+  const [nombre, setNombre] = useState<string | null>(null); // <--- 1. AÑADIDO ESTADO PARA EL NOMBRE
+
   // Reporte para enviar a la API de logs
   const report: AnyDict = {
     message: "BackURL recibido en /gracias (página de USUARIO)",
@@ -107,6 +108,20 @@ export default function GraciasContent() {
     campos: { id_suscriptor: id, preapproval_id, status },
     entorno: envSnapshot,
   };
+
+  // <--- 2. AÑADIDO USEEFFECT PARA LEER LOCALSTORAGE
+  // Efecto para leer el nombre desde localStorage
+  useEffect(() => {
+    try {
+      // Asegúrate que "thc_nombre_suscriptor" sea la clave correcta
+      const nombreGuardado = localStorage.getItem("thc_nombre_suscriptor");
+      if (nombreGuardado) {
+        setNombre(nombreGuardado);
+      }
+    } catch (e) {
+      console.warn("No se pudo leer el nombre desde localStorage", e);
+    }
+  }, []); // El array vacío asegura que se ejecute solo una vez
 
   useEffect(() => {
     async function procesarBackUrl() {
@@ -131,7 +146,7 @@ export default function GraciasContent() {
       // Estados positivos
       const positivos = ["authorized", "approved", "success", "active"];
       const esPositivo = positivos.includes(statusNorm) || statusNorm === "";
-      
+
       if (esPositivo) {
         // Intento activar premium provisorio
         try {
@@ -199,18 +214,22 @@ export default function GraciasContent() {
       {uiStatus === "ok" && (
         <div className="space-y-6 flex flex-col items-center">
           <CheckIcon />
+          {/* // <--- 3. MODIFICADO H1 PARA USAR EL NOMBRE */}
           <h1 className="text-3xl sm:text-4xl font-bold text-white">
-            ¡Felicitaciones! Tu suscripción está activa.
+            ¡Felicitaciones{nombre ? `, ${nombre}` : ""}! Tu suscripción está
+            activa.
           </h1>
           <p className="text-lg text-slate-300">
-            Acabamos de enviarte tu primer mensaje de bienvenida.
-            Estás a punto de recibir la mejor energía del universo.
+            Acabamos de enviarte tu primer mensaje de bienvenida. Estás a punto
+            de recibir la mejor energía del universo.
           </p>
 
           {/* ONBOARDING */}
           <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-left space-y-5">
-            <h2 className="text-xl font-semibold text-white">Pasos siguientes:</h2>
-            
+            <h2 className="text-xl font-semibold text-white">
+              Pasos siguientes:
+            </h2>
+
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">1.</div>
               <p className="text-base">
@@ -223,16 +242,16 @@ export default function GraciasContent() {
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">2.</div>
               <p className="text-base">
                 <strong>¡Agréganos a tus contactos!</strong> Este es el paso más
-                importante para asegurar que siempre recibas nuestros mensajes
-                y audios.
+                importante para asegurar que siempre recibas nuestros mensajes y
+                audios.
               </p>
             </div>
 
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">3.</div>
               <p className="text-base">
-                <strong>¿No recibiste nada?</strong> Si en 5 minutos no ves nuestro
-                mensaje, escríbenos a{" "}
+                <strong>¿No recibiste nada?</strong> Si en 5 minutos no ves
+                nuestro mensaje, escríbenos a{" "}
                 <a
                   href="mailto:soporte@tuhoroscopo.com" // <-- CAMBIA ESTE EMAIL
                   className="font-bold underline hover:text-indigo-300"
@@ -258,8 +277,8 @@ export default function GraciasContent() {
           </p>
           <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-slate-300">
             <p>
-              Te avisaremos por WhatsApp (al número que registraste)
-              apenas se confirme el pago. No necesitas hacer nada más.
+              Te avisaremos por WhatsApp (al número que registraste) apenas se
+              confirme el pago. No necesitas hacer nada más.
             </p>
           </div>
         </div>
@@ -277,9 +296,9 @@ export default function GraciasContent() {
           </p>
           <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 space-y-5">
             <p>
-              Parece que hubo un problema al procesar tu suscripción
-              (el pago pudo ser rechazado o faltaron datos).
-              Por favor, vuelve a intentarlo.
+              Parece que hubo un problema al procesar tu suscripción (el pago
+              pudo ser rechazado o faltaron datos). Por favor, vuelve a
+              intentarlo.
             </p>
             <a
               href="/#checkout" // <-- Ajusta esto a tu página de checkout
