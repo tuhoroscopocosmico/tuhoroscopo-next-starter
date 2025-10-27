@@ -217,11 +217,11 @@ export default function GraciasContent() {
   
   // --- Función de Confeti (igual que antes) ---
   function lanzarConfeti() {
-    const duration = 3000;
+    const duration = 5000;
     const end = Date.now() + duration;
     (function frame() {
-      confetti({ particleCount: 8, angle: 60, spread: 80, origin: { x: 0 } });
-      confetti({ particleCount: 8, angle: 120, spread: 80, origin: { x: 1 } });
+      confetti({ particleCount: 9, angle: 60, spread: 80, origin: { x: 0 } });
+      confetti({ particleCount: 9, angle: 120, spread: 80, origin: { x: 1 } });
       if (Date.now() < end) requestAnimationFrame(frame);
     })();
   }
