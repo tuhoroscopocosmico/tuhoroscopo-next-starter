@@ -231,7 +231,7 @@ export default function CheckoutContent() {
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Procesando pago...
+                      Conectando con Mercado Pago...
                     </>
                   ) : (
                     'Confirmar y pagar $U 390'
