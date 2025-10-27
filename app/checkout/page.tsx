@@ -3,6 +3,7 @@
 // === Descripción: Página principal (Server Component) para
 // === el flujo de checkout unificado.
 // ============================================================
+
 import CheckoutContent from './CheckoutContent';
 import { Suspense } from "react";
 

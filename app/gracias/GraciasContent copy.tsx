@@ -1,9 +1,4 @@
-// ============================================================
-// === Archivo: app/gracias/GraciasContent.tsx
-// === Descripción: Componente CLIENTE para la bienvenida.
-// === (ACTUALIZADO: Lee y muestra Nombre y Signo)
-// ============================================================
-
+// GraciasCntent
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +7,7 @@ import confetti from "canvas-confetti";
 
 type AnyDict = Record<string, any>;
 
-// --- (Aquí van tus 3 componentes de íconos: CheckIcon, ClockIcon, ErrorIcon) ---
+// Componente visual para un ícono de check (Éxito)
 function CheckIcon() {
   return (
     <svg
@@ -31,6 +26,8 @@ function CheckIcon() {
     </svg>
   );
 }
+
+// Componente visual para un ícono de reloj (Pendiente)
 function ClockIcon() {
   return (
     <svg
@@ -49,6 +46,8 @@ function ClockIcon() {
     </svg>
   );
 }
+
+// Componente visual para un ícono de error (Error)
 function ErrorIcon() {
   return (
     <svg
@@ -67,14 +66,13 @@ function ErrorIcon() {
     </svg>
   );
 }
-// --- (Fin de los componentes de íconos) ---
-
 
 export default function GraciasContent() {
   const sp = useSearchParams();
 
-  // --- Lógica de Parámetros de URL ---
-  // (Esta parte queda igual)
+  // ─────────────────────────────────────────────────────────────
+  // TODA LA LÓGICA DE DIAGNÓSTICO SE MANTIENE
+  // ─────────────────────────────────────────────────────────────
   const allParams = useMemo(() => {
     const obj: AnyDict = {};
     try {
@@ -99,19 +97,12 @@ export default function GraciasContent() {
     []
   );
 
-  // --- Estados de UI (ACTUALIZADO) ---
   const [uiStatus, setUiStatus] = useState<"idle" | "ok" | "warn" | "error">(
     "idle"
   );
-  
-  // ================================================================
-  // <--- 1. ESTADOS PARA GUARDAR LOS DATOS DE SESIÓN
-  const [nombre, setNombre] = useState<string | null>(null);
-  const [signo, setSigno] = useState<string | null>(null); // <-- AÑADIDO
-  // ================================================================
+  const [nombre, setNombre] = useState<string | null>(null); // <-- 1. AÑADIDO ESTADO PARA EL NOMBRE
 
-
-  // Reporte para enviar a la API de logs (queda igual)
+  // Reporte para enviar a la API de logs
   const report: AnyDict = {
     message: "BackURL recibido en /gracias (página de USUARIO)",
     params_crudos: allParams,
@@ -119,42 +110,26 @@ export default function GraciasContent() {
     entorno: envSnapshot,
   };
 
-
-  // ================================================================
-  // <--- 2. USEEFFECT PARA LEER LOS DATOS DE SESSIONSTORAGE
-  // Este efecto se ejecuta SÓLO UNA VEZ cuando el componente carga.
-  // ================================================================
+  // <-- 2. AÑADIDO USEEFFECT PARA LEER LOCALSTORAGE
+  // Efecto para leer el nombre desde localStorage
   useEffect(() => {
     try {
-      // Leemos ambos datos desde sessionStorage
-      const nombreGuardado = sessionStorage.getItem("thc_nombre_suscriptor"); 
-      const signoGuardado = sessionStorage.getItem("thc_signo_suscriptor"); // <-- AÑADIDO
-
+      // Revisa si este 'key' es el correcto que usaste al guardar
+      const nombreGuardado = localStorage.getItem("thc_nombre_suscriptor");
       if (nombreGuardado) {
-        setNombre(nombreGuardado); // Guardamos el nombre en el estado
+        setNombre(nombreGuardado);
       }
-      if (signoGuardado) {
-        setSigno(signoGuardado); // Guardamos el signo en el estado
-      }
-      
-      // Opcional: Limpiamos los datos para que no queden
-      // en la sesión si el usuario navega hacia atrás y adelante.
-      sessionStorage.removeItem("thc_nombre_suscriptor");
-      sessionStorage.removeItem("thc_signo_suscriptor");
-
     } catch (e) {
-      console.warn("No se pudo leer desde sessionStorage", e);
+      // No es un error crítico, solo un warning en consola
+      console.warn("No se pudo leer el nombre desde localStorage", e);
     }
-  }, []); // El array vacío [] asegura que se ejecute solo una vez.
-  // ================================================================
+  }, []); // El array vacío asegura que se ejecute solo una vez
 
-
-  // Efecto principal para procesar el pago (queda igual)
   useEffect(() => {
     async function procesarBackUrl() {
       // 1) Validación mínima
       if (!id || !preapproval_id) {
-        setUiStatus("error"); 
+        setUiStatus("error"); // Faltan params, mostramos error
         return;
       }
 
@@ -192,10 +167,10 @@ export default function GraciasContent() {
             setUiStatus("ok");
             lanzarConfeti();
           } else {
-            setUiStatus("warn"); 
+            setUiStatus("warn"); // Falló la activación, queda pendiente
           }
         } catch (e: any) {
-          setUiStatus("error"); 
+          setUiStatus("error"); // Error de red
         }
         return;
       }
@@ -212,10 +187,11 @@ export default function GraciasContent() {
 
     procesarBackUrl();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, []);
 
-  
-  // --- Función de Confeti (igual que antes) ---
+  // ─────────────────────────────────────────────────────────────
+  // UI HELPER: FUNCIÓN DE CONFETI
+  // ─────────────────────────────────────────────────────────────
   function lanzarConfeti() {
     const duration = 3000;
     const end = Date.now() + duration;
@@ -226,42 +202,36 @@ export default function GraciasContent() {
     })();
   }
 
-  // --- Renderizado de UI (con el nombre y signo) ---
+  // ─────────────────────────────────────────────────────────────
+  // NUEVO RETURN (UI PARA EL USUARIO)
+  // ─────────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-2xl p-4 py-16 sm:py-24 text-center text-white">
-      
-      {/* ===== DISEÑO 1: EL CAMINO FELIZ (ACTUALIZADO) ===== */}
+      {/* Mientras uiStatus === 'idle', el Suspense de page.tsx 
+        muestra "Cargando...".
+        Solo renderizamos cuando tenemos un estado final.
+      */}
+
+      {/* ===== DISEÑO 1: EL CAMINO FELIZ ===== */}
       {uiStatus === "ok" && (
         <div className="space-y-6 flex flex-col items-center">
           <CheckIcon />
-
-          {/* ================================================================ */}
-          {/* <--- 3. MODIFICADO EL H1 Y AÑADIDO UN PÁRRAFO
-                     PARA USAR EL NOMBRE Y EL SIGNO
-          */}
-          {/* ================================================================ */}
+          {/* // <-- 3. MODIFICADO H1 PARA USAR EL NOMBRE */}
           <h1 className="text-3xl sm:text-4xl font-bold text-white">
-            ¡Felicitaciones{nombre ? `, ${nombre}` : ""}!
+            ¡Felicitaciones{nombre ? `, ${nombre}` : ""}! Tu suscripción está
+            activa.
           </h1>
-          
-          <p className="text-lg text-slate-300 -mt-2">
-            Tu suscripción premium
-            {/* Mostramos el signo si lo pudimos leer */}
-            {signo ? ` para ${signo}` : ""} está activa.
-          </p>
-          
           <p className="text-lg text-slate-300">
-            Acabamos de enviarte tu primer mensaje de bienvenida.
-            Estás a punto de recibir la mejor energía del universo.
+            Acabamos de enviarte tu primer mensaje de bienvenida. Estás a punto
+            de recibir la mejor energía del universo.
           </p>
-          {/* ================================================================ */}
 
-          {/* ONBOARDING (queda igual) */}
+          {/* ONBOARDING */}
           <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-left space-y-5">
             <h2 className="text-xl font-semibold text-white">
               Pasos siguientes:
             </h2>
-            
+
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">1.</div>
               <p className="text-base">
@@ -274,16 +244,16 @@ export default function GraciasContent() {
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">2.</div>
               <p className="text-base">
                 <strong>¡Agréganos a tus contactos!</strong> Este es el paso más
-                importante para asegurar que siempre recibas nuestros mensajes
-                y audios.
+                importante para asegurar que siempre recibas nuestros mensajes y
+                audios.
               </p>
             </div>
 
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">3.</div>
               <p className="text-base">
-                <strong>¿No recibiste nada?</strong> Si en 5 minutos no ves nuestro
-                mensaje, escríbenos a{" "}
+                <strong>¿No recibiste nada?</strong> Si en 5 minutos no ves
+                nuestro mensaje, escríbenos a{" "}
                 <a
                   href="mailto:soporte@tuhoroscopo.com" // <-- CAMBIA ESTE EMAIL
                   className="font-bold underline hover:text-indigo-300"
@@ -296,7 +266,7 @@ export default function GraciasContent() {
         </div>
       )}
 
-      {/* ===== DISEÑO 2: PAGO PENDIENTE (queda igual) ===== */}
+      {/* ===== DISEÑO 2: PAGO PENDIENTE =====  */}
       {uiStatus === "warn" && (
         <div className="space-y-6 flex flex-col items-center">
           <ClockIcon />
@@ -309,14 +279,14 @@ export default function GraciasContent() {
           </p>
           <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-slate-300">
             <p>
-              Te avisaremos por WhatsApp (al número que registraste)
-              apenas se confirme el pago. No necesitas hacer nada más.
+              Te avisaremos por WhatsApp (al número que registraste) apenas se
+              confirme el pago. No necesitas hacer nada más.
             </p>
           </div>
         </div>
       )}
 
-      {/* ===== DISEÑO 3: ERROR EN EL PAGO (queda igual) ===== */}
+      {/* ===== DISEÑO 3: ERROR EN EL PAGO ===== */}
       {uiStatus === "error" && (
         <div className="space-y-6 flex flex-col items-center">
           <ErrorIcon />
@@ -325,12 +295,12 @@ export default function GraciasContent() {
           </h1>
           <p className="text-lg text-slate-300">
             No te preocupes, no se realizó ningún cargo en tu tarjeta.
-          </p>
+          </p> {/* // <-- 4. CORREGIDO CIERRE DE ETIQUETA */}
           <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 space-y-5">
             <p>
-              Parece que hubo un problema al procesar tu suscripción
-              (el pago pudo ser rechazado o faltaron datos).
-              Por favor, vuelve a intentarlo.
+              Parece que hubo un problema al procesar tu suscripción (el pago
+              pudo ser rechazado o faltaron datos). Por favor, vuelve a
+              intentarlo.
             </p>
             <a
               href="/#checkout" // <-- Ajusta esto a tu página de checkout
