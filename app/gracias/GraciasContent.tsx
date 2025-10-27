@@ -1,3 +1,4 @@
+// GraciasCntent
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -99,7 +100,7 @@ export default function GraciasContent() {
   const [uiStatus, setUiStatus] = useState<"idle" | "ok" | "warn" | "error">(
     "idle"
   );
-  const [nombre, setNombre] = useState<string | null>(null); // <--- 1. AÑADIDO ESTADO PARA EL NOMBRE
+  const [nombre, setNombre] = useState<string | null>(null); // <-- 1. AÑADIDO ESTADO PARA EL NOMBRE
 
   // Reporte para enviar a la API de logs
   const report: AnyDict = {
@@ -109,16 +110,17 @@ export default function GraciasContent() {
     entorno: envSnapshot,
   };
 
-  // <--- 2. AÑADIDO USEEFFECT PARA LEER LOCALSTORAGE
+  // <-- 2. AÑADIDO USEEFFECT PARA LEER LOCALSTORAGE
   // Efecto para leer el nombre desde localStorage
   useEffect(() => {
     try {
-      // Asegúrate que "thc_nombre_suscriptor" sea la clave correcta
+      // Revisa si este 'key' es el correcto que usaste al guardar
       const nombreGuardado = localStorage.getItem("thc_nombre_suscriptor");
       if (nombreGuardado) {
         setNombre(nombreGuardado);
       }
     } catch (e) {
+      // No es un error crítico, solo un warning en consola
       console.warn("No se pudo leer el nombre desde localStorage", e);
     }
   }, []); // El array vacío asegura que se ejecute solo una vez
@@ -214,7 +216,7 @@ export default function GraciasContent() {
       {uiStatus === "ok" && (
         <div className="space-y-6 flex flex-col items-center">
           <CheckIcon />
-          {/* // <--- 3. MODIFICADO H1 PARA USAR EL NOMBRE */}
+          {/* // <-- 3. MODIFICADO H1 PARA USAR EL NOMBRE */}
           <h1 className="text-3xl sm:text-4xl font-bold text-white">
             ¡Felicitaciones{nombre ? `, ${nombre}` : ""}! Tu suscripción está
             activa.
@@ -264,7 +266,7 @@ export default function GraciasContent() {
         </div>
       )}
 
-      {/* ===== DISEÑO 2: PAGO PENDIENTE ===== */}
+      {/* ===== DISEÑO 2: PAGO PENDIENTE =====  */}
       {uiStatus === "warn" && (
         <div className="space-y-6 flex flex-col items-center">
           <ClockIcon />
@@ -293,7 +295,7 @@ export default function GraciasContent() {
           </h1>
           <p className="text-lg text-slate-300">
             No te preocupes, no se realizó ningún cargo en tu tarjeta.
-          </p>
+          </p> {/* // <-- 4. CORREGIDO CIERRE DE ETIQUETA */}
           <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 space-y-5">
             <p>
               Parece que hubo un problema al procesar tu suscripción (el pago
