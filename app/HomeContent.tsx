@@ -1,95 +1,80 @@
 // ============================================================
 // === Archivo: app/HomeContent.tsx
-// === Descripción: Componente principal de la Landing Page (Paso 1).
-// === Muestra beneficios, precio y CTAs a /checkout.
+// === Descripción: Componente principal de la Landing Page.
+// ===              Muestra H1, Mockup, Beneficios, Testimonios y CTA.
+// ===              Modificado para mejorar persuasión y claridad.
 // ============================================================
-"use client";
+'use client'; // Necesario porque importa Client Components
 
-import Link from "next/link";
-import Logo from "@/components/logo";
-// --- FORMULARIO Y CTA FLOTANTE ELIMINADOS DE LA LANDING ---
-import BenefitsGridLite from "@/components/Benefits/BenefitsGridLite";
+// --- IMPORTACIONES ---
+// Verifica CUIDADOSAMENTE que estas rutas coincidan EXACTAMENTE
+// con la ubicación y el nombre (MAYÚSCULAS/minúsculas) de tus archivos.
+
+import { CTAButton } from '@/components/CTAButton';
+import Logo from '@/components/logo';
+import BenefitsGridLite from '@/components/Benefits/BenefitsGridLite'; // ¿Está en components/Benefits/ ?
+import Testimonios from '@/components/Testimonios';         // ¿Está en components/ ?
+import WhatsAppMockup from '@/components/WhatsAppMockup';     // ¿Está en components/ ?
+import SubscriptionSummary from '@/components/SubscriptionSummary';
 
 export default function HomeContent() {
+
   return (
-    <div className="body-overlay min-h-screen relative flex flex-col">
-      <main className="relative z-[1] flex-grow">
-        {/* HERO */}
-        <section className="mx-auto max-w-5xl px-4 text-center">
-          <Link href="/" className="inline-flex items-center gap-3">
-            <Logo />
-          </Link>
+    <div className="container mx-auto px-4 py-12 md:py-20">
+      {/* Sección Hero Principal */}
+      <section className="text-center max-w-3xl mx-auto mb-16 md:mb-24">
+        <div className="mb-6">
+          <Logo className="h-16 w-auto mx-auto" /> {/* Logo */}
+        </div>
 
-          <h2 className="mt-8 text-2xl md:text-4xl font-extrabold leading-snug">
-            <span className="inline-block align-middle">🌟</span>{" "}
-            Comenzá cada día recibiendo tu mensaje personalizado con la{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-pink-300">
-              mejor energía del universo
-            </span>
-          </h2>
+        {/* Título Principal (H1) */}
+        <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight">
+          Recibí tu Horóscopo Premium. Personalizado y directo a tu WhatsApp.
+        </h1>
+        {/* Subtítulo */}
+        <p className="text-lg md:text-xl text-white/70 mb-8">
+          Comenzá cada día con la guía astrológica que necesitás, incluyendo mensajes de audio y consejos únicos para vos.
+        </p>
 
-          <p className="mt-4 text-white/85">
-            Astrología moderna, práctica y hecha para vos. Sin apps. Sin vueltas. Lista para{" "}
-            <strong>Uruguay</strong>.
-          </p>
-          <p className="text-white/70">
-            Sólo mensajes premium, únicos, directo a tu WhatsApp para arrancar tu día con claridad y buena energía.
-          </p>
+        {/* Mockup Visual de WhatsApp */}
+        <div className="my-10 md:my-12 flex justify-center">
+            <WhatsAppMockup />
+        </div>
 
-          {/* Primer bloque de beneficios */}
-          <BenefitsGridLite start={0} end={6} />
+        {/* CTA Principal */}
+        <CTAButton href="/checkout" text="Recibir mi Horóscopo Premium Ahora" className="text-lg" />
+        <p className="text-xs text-white/50 mt-2">Suscripción mensual $U 390. Cancelás cuando quieras.</p>
+      </section>
 
-          {/* =========================================== */}
-          {/* === CTA MODIFICADO (APUNTA A /checkout) === */}
-          {/* =========================================== */}
-          <div className="mt-10 text-center">
-            <Link
-              href="/checkout" // <-- CAMBIADO: Apunta a /checkout
-              className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-7 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300"
-            >
-              Suscribirme ahora por $U 390
-            </Link>
-          </div>
+      {/* Sección de Beneficios */}
+      <section className="mb-16 md:mb-24">
+        {/* Título para Beneficios */}
+        <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-10 md:mb-12">
+          Tu suscripción premium incluye todo esto:
+        </h2>
+        {/* Grid de Beneficios */}
+        <BenefitsGridLite />
+      </section>
 
-          {/* =========================================== */}
-          {/* === NUEVO BLOQUE DE PRECIO === */}
-          {/* =========================================== */}
-          <div className="mx-auto max-w-sm mt-16 mb-12">
-            <div className="rounded-2xl bg-cosmic-surface/70 border border-white/10 p-6 shadow-glow backdrop-blur-sm text-center">
-              <h3 className="text-2xl font-bold text-white">
-                Suscripción premium mensual
-              </h3>
-              <div className="my-4">
-                <span className="text-4xl font-extrabold text-white">$U 390</span>
-                <span className="text-white/80 font-semibold ml-1">/mes</span>
-              </div>
-              <p className="text-white/70 text-sm">
-                Sin ataduras. Cancelá cuando quieras.
-              </p>
-            </div>
-          </div>
-          {/* =========================================== */}
+       {/* Sección de Testimonios */}
+      <section className="mb-16 md:mb-24">
+        <Testimonios />
+      </section>
 
-          {/* Segundo bloque de beneficios */}
-          <BenefitsGridLite start={6} end={9} />
+      {/* Sección Final de Precio/CTA */}
+      <section className="text-center max-w-2xl mx-auto">
+         {/* Título CTA Final */}
+         <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">
+          Listo para transformar tu día a día?
+        </h2>
+        {/* Resumen del plan */}
+        <SubscriptionSummary />
+         {/* Botón CTA Final */}
+         <div className="mt-8">
+             <CTAButton href="/checkout" text="Empezar mi Suscripción Premium" className="text-xl" />
+         </div>
+      </section>
 
-          {/* =========================================== */}
-          {/* === CTA REPETIDO (FINAL) === */}
-          {/* =========================================== */}
-          <div className="mt-10 mb-16 text-center">
-            <Link
-              href="/checkout" // <-- CAMBIADO: Apunta a /checkout
-              className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 to-pink-400 px-7 py-3 font-semibold text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300"
-            >
-              Suscribirme ahora por $U 390
-            </Link>
-          </div>
-
-        </section>
-        
-        {/* La sección del formulario ha sido eliminada */}
-        
-      </main>
     </div>
   );
 }

@@ -1,39 +1,59 @@
+// ============================================================
+// === Archivo: components/CTAButton.tsx
+// === Descripción: Componente reutilizable para botones de llamada a la acción (Links).
+// ===              Modificado para aceptar 'text' en lugar de 'children'.
+// ============================================================
 import Link, { type LinkProps } from "next/link";
-import type { ReactNode } from "react";
 import clsx from "clsx";
 import type { Route } from "next";
 
-// ✅ Soporta tanto rutas internas tipadas (`Route`) como URLs externas
+// Define las props que acepta el componente
 type CTAButtonProps = {
-  href: Route | string;
-  children: ReactNode;
-  className?: string;
+  href: Route | string; // Soporta rutas internas tipadas y URLs externas
+  text: string;         // *** CAMBIO: Ahora espera 'text' en lugar de 'children' ***
+  className?: string;   // className opcional para estilos adicionales
 };
 
-export function CTAButton({ href, children, className }: CTAButtonProps) {
+export function CTAButton({ href, text, className }: CTAButtonProps) {
+  // Determina si el enlace es externo (empieza con http)
   const isExternal = typeof href === "string" && href.startsWith("http");
 
+  // Clases base para el botón
+  const baseClasses = "btn-cta w-full sm:w-auto text-center inline-block px-8 py-3 rounded-xl font-semibold transition duration-300 ease-in-out"; // Añadidas clases base ejemplo
+
+  // Clases específicas de estilo (ajusta según tu diseño)
+  const styleClasses = "bg-gradient-to-r from-amber-400 to-pink-400 text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 hover:scale-[1.03]";
+
+
   if (isExternal) {
-    // 🔗 Links externos → redes sociales, etc.
+    // 🔗 Renderiza como <a> para links externos
     return (
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className={clsx("btn-cta w-full sm:w-auto text-center", className)}
+        // Combina clases base, estilo y las recibidas por props
+        className={clsx(baseClasses, styleClasses, className)}
       >
-        {children}
+        {/* *** CAMBIO: Muestra el contenido de la prop 'text' *** */}
+        {text}
       </a>
     );
   }
 
-  // 🌀 Links internos → validados por Next.js (ej: "/planes", "/registro")
+  // 🌀 Renderiza como <Link> para links internos
   return (
     <Link
-      href={href as Route}
-      className={clsx("btn-cta w-full sm:w-auto text-center", className)}
+      href={href as Route} // Casteo a Route para links internos
+      // Combina clases base, estilo y las recibidas por props
+      className={clsx(baseClasses, styleClasses, className)}
     >
-      {children}
+      {/* *** CAMBIO: Muestra el contenido de la prop 'text' *** */}
+      {text}
     </Link>
   );
 }
+
+// Nota: Asegúrate de tener las clases 'btn-cta' definidas globalmente
+// o reemplaza `baseClasses` y `styleClasses` con las clases de Tailwind
+// que definen la apariencia base y de estilo de tu botón.
