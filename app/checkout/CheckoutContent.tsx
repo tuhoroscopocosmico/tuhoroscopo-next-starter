@@ -1,7 +1,8 @@
 // ============================================================
 // === Archivo: app/checkout/CheckoutContent.tsx
 // === Descripción: Client Component con diseño unificado ("Tablero Cósmico").
-// ===              Modificado para guardar datos en sessionStorage antes de pagar.
+// === Refinamientos: Panel único, títulos simplificados, botón vibrante.
+// === VERIFICACIÓN: Llama a /api/iniciar-checkout y guarda datos en sessionStorage.
 // ============================================================
 'use client';
 
@@ -37,7 +38,6 @@ function normalizarUY(num: string): { telefono: string; whatsapp: string } {
 
 
 export default function CheckoutContent() {
-  // --- Estados (sin cambios) ---
   const [formData, setFormData] = useState<FormData>({
     name: '',
     signo: '',
@@ -48,13 +48,12 @@ export default function CheckoutContent() {
   const [error, setError] = useState<string | null>(null);
   const [acepta, setAcepta] = useState<boolean>(false);
 
-  // --- Handlers (sin cambios) ---
+  // Manejador de cambios en inputs (sin cambios)
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     if (name === 'whatsapp') {
-      // Limpiar para mantener solo números, pero permitir que el usuario escriba
       setFormData((prev) => ({ ...prev, [name]: value.replace(/[^\d]/g, '') }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
@@ -62,12 +61,13 @@ export default function CheckoutContent() {
     setError(null);
   };
 
+  // Manejador de cambio en checkbox (sin cambios)
   const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
     setAcepta(e.target.checked);
     setError(null);
   };
 
-  // --- Función Submit (Modificada) ---
+  // Manejador del submit
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
@@ -81,39 +81,42 @@ export default function CheckoutContent() {
       setError('Por favor, completa todos los campos.');
       return;
     }
-    const whatsappSanitized = formData.whatsapp.replace(/\s+/g, '');
+    const whatsappSanitized = formData.whatsapp.replace(/\s+/g, ''); // Número local (ej: 09...)
     const whatsappRegex = /^09\d{7}$/;
     if (!whatsappRegex.test(whatsappSanitized)) {
-      setError('El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099123456).');
-      return;
+       setError('El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099123456).');
+       return;
     }
 
-    // *** NUEVO: Guardar datos en sessionStorage ANTES de iniciar la carga ***
+    // *** PASO 1: GUARDAR DATOS EN SESSIONSTORAGE (INCLUYE WHATSAPP LOCAL) ***
     try {
         const checkoutData = {
             name: formData.name.trim(),
             signo: formData.signo,
             contenidoPreferido: formData.contenidoPreferido,
-            whatsapp: whatsappSanitized // Guardar el número limpio
+            whatsapp: whatsappSanitized // Guardamos el número local ej: 099863263
         };
         sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData));
         console.log('Datos guardados en sessionStorage:', checkoutData);
-    } catch (sessionError) {
-        console.error("Error al guardar en sessionStorage:", sessionError);
-        // Opcional: Podrías decidir si continuar o no si falla sessionStorage
+    } catch(sessionError) {
+        console.warn("No se pudo guardar en sessionStorage:", sessionError);
+        // Continuamos igualmente, no es crítico para el pago
     }
-    // ************************************************************************
+    // **************************************************************************
 
+
+    // Iniciar carga
     setIsLoading(true);
 
     try {
+      // Normalizar WhatsApp para el backend
       const { telefono, whatsapp: waE164 } = normalizarUY(whatsappSanitized);
       if (!telefono || telefono.length !== 9 || !telefono.startsWith('9')) {
          console.error("Error post-normalización:", {telefono, waE164});
          throw new Error('El número de WhatsApp proporcionado no es válido tras normalizar.');
       }
 
-      // Payload ÚNICO para la nueva API /api/iniciar-checkout (sin cambios)
+      // Payload para la API unificada (sin cambios)
       const payload = {
         nombre: formData.name.trim(),
         telefono: telefono,
@@ -130,13 +133,11 @@ export default function CheckoutContent() {
 
       // --- Llamada a la API Unificada (sin cambios) ---
       console.log('>>> LLAMANDO A /api/iniciar-checkout con payload:', payload);
-
       const response = await fetch('/api/iniciar-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       console.log('/api/iniciar-checkout status:', response.status);
 
       if (!response.ok) {
@@ -159,6 +160,7 @@ export default function CheckoutContent() {
 
       if (init_point) {
         window.location.href = init_point;
+        // No es necesario setIsLoading(false) aquí
       } else {
         console.error("Error crítico: /api/iniciar-checkout OK pero no devolvió init_point. Respuesta:", result);
         throw new Error('No se recibió la URL de pago de Mercado Pago.');
@@ -167,10 +169,7 @@ export default function CheckoutContent() {
       console.error('Error capturado en handleSubmit:', err);
       setError(err.message || 'Ocurrió un error inesperado. Verifica tus datos e intenta de nuevo.');
       setIsLoading(false);
-      // *** NUEVO: Opcional - Limpiar sessionStorage si falla el submit ***
-      // sessionStorage.removeItem('checkoutData');
-      // console.log('Datos de sessionStorage eliminados por error en submit.');
-      // *******************************************************************
+      // Opcional: sessionStorage.removeItem('checkoutData');
     }
   };
 
@@ -191,61 +190,61 @@ export default function CheckoutContent() {
       {/* Panel Central Unificado */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-10 backdrop-blur-sm shadow-xl">
         <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
-              {/* Columna Izquierda: Formulario */}
-              <div className="space-y-6">
-                <h2 className="text-xl font-semibold text-white">
-                  Completa tus datos
-                </h2>
-                <LeadFormFields
-                  formData={formData}
-                  handleInputChange={handleInputChange}
-                  isLoading={isLoading}
-                  acepta={acepta}
-                  handleCheckboxChange={handleCheckboxChange}
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
+            {/* Columna Izquierda: Formulario */}
+            <div className="space-y-6">
+              <h2 className="text-xl font-semibold text-white">
+                Completa tus datos
+              </h2>
+              <LeadFormFields
+                formData={formData}
+                handleInputChange={handleInputChange}
+                isLoading={isLoading}
+                acepta={acepta}
+                handleCheckboxChange={handleCheckboxChange}
+              />
+            </div>
 
-              {/* Columna Derecha: Resumen y Botón */}
-              <div className="space-y-6">
-                <h2 className="text-xl font-semibold text-white md:text-center">
-                  Tu Suscripción Premium
-                </h2>
-                <SubscriptionSummary />
+            {/* Columna Derecha: Resumen y Botón */}
+            <div className="space-y-6">
+              <h2 className="text-xl font-semibold text-white md:text-center">
+                Tu Suscripción Premium
+              </h2>
+              <SubscriptionSummary />
 
-                {/* Mensaje de Error */}
-                {error && (
-                  <p className="mt-4 text-center text-rose-300 text-sm px-4">{error}</p>
-                )}
+              {/* Mensaje de Error */}
+              {error && (
+                <p className="mt-4 text-center text-rose-300 text-sm px-4">{error}</p>
+              )}
 
-                {/* Botón de Pago Unificado */}
-                <div className="mt-6 mx-auto max-w-xl text-center">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className={`w-full px-8 py-4 rounded-xl text-lg font-bold transition-all duration-300 ease-in-out flex items-center justify-center ${
-                      isLoading
-                        ? 'bg-purple-400/50 text-white/70 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-amber-400 to-pink-400 text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:ring-offset-2 focus:ring-offset-black/50 disabled:opacity-60'
-                    }`}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Procesando pago...
-                      </>
-                    ) : (
-                      'Confirmar y pagar $U 390'
-                    )}
-                  </button>
-                  {!isLoading && (
-                    <p className="text-white/55 text-xs mt-3 px-4">
-                      Serás redirigido a Mercado Pago para finalizar de forma segura.
-                    </p>
+              {/* Botón de Pago Unificado */}
+              <div className="mt-6 mx-auto max-w-xl text-center">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className={`w-full px-8 py-4 rounded-xl text-lg font-bold transition-all duration-300 ease-in-out flex items-center justify-center ${
+                    isLoading
+                    ? 'bg-purple-400/50 text-white/70 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-amber-400 to-pink-400 text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:ring-offset-2 focus:ring-offset-black/50 disabled:opacity-60'
+                  }`}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Procesando pago...
+                    </>
+                  ) : (
+                    'Confirmar y pagar $U 390'
                   )}
-                </div>
+                </button>
+                {!isLoading && (
+                  <p className="text-white/55 text-xs mt-3 px-4">
+                    Serás redirigido a Mercado Pago para finalizar de forma segura.
+                  </p>
+                )}
               </div>
             </div>
+          </div>
         </form>
       </div>
     </div>

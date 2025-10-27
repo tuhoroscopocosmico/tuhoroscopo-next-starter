@@ -2,7 +2,7 @@
 // === Archivo: app/gracias/GraciasContent.tsx
 // === Descripción: Componente CLIENTE para la página de agradecimiento post-pago.
 // ===              Lee el estado del pago desde URL y los datos del usuario
-// ===              desde sessionStorage para personalizar el mensaje.
+// ===              (incluyendo WhatsApp) desde sessionStorage.
 // ============================================================
 
 "use client";
@@ -10,17 +10,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
-import { Loader2 } from 'lucide-react'; // *** AÑADIDO: Importar Loader2 ***
+import { Loader2 } from 'lucide-react'; // Importar Loader2
 
 // Tipo para los datos guardados en sessionStorage
 interface CheckoutData {
   name?: string;
   signo?: string;
   contenidoPreferido?: string;
-  whatsapp?: string;
+  whatsapp?: string; // Esperamos el formato 09...
 }
 
-// Tipo genérico para parámetros (sin cambios)
+// Tipo genérico para parámetros
 type AnyDict = Record<string, any>;
 
 // --- Componentes de Íconos (sin cambios) ---
@@ -82,43 +82,55 @@ function ErrorIcon() {
 
 
 export default function GraciasContent() {
+  // Hook para leer parámetros de la URL
   const sp = useSearchParams();
 
-  // --- Lógica de Parámetros de URL (sin cambios) ---
+  // --- Lógica de Parámetros de URL ---
+  // Extrae todos los parámetros de la URL en un objeto
   const allParams = useMemo(() => {
     const obj: AnyDict = {};
     try {
+      // `sp.entries()` devuelve un iterador, lo convertimos a array y lo recorremos
       for (const [k, v] of Array.from(sp.entries())) {
+        // Maneja parámetros repetidos convirtiéndolos en array
         if (obj[k] === undefined) obj[k] = v;
         else obj[k] = Array.isArray(obj[k]) ? [...obj[k], v] : [obj[k], v];
       }
-    } catch (_) {}
+    } catch (_) {
+        // Ignora errores si `sp` no es iterable (poco probable)
+    }
     return obj;
-  }, [sp]);
+  }, [sp]); // Se recalcula solo si cambian los searchParams
 
+  // Extrae parámetros específicos necesarios para la lógica
   const id = (allParams.id_suscriptor ?? allParams.id ?? "") as string;
   const preapproval_id = (
     allParams.preapproval_id ?? allParams.preapproval ?? ""
   ) as string;
   const status = (allParams.status ?? allParams.collection_status ?? "") as string;
 
+  // Guarda la URL actual para logging (solo una vez al montar)
   const envSnapshot = useMemo(
     () => ({
-      href: typeof window !== "undefined" ? window.location.href : "",
+      href: typeof window !== "undefined" ? window.location.href : "", // Asegura que solo se ejecute en cliente
     }),
     []
   );
 
   // --- Estados de UI ---
+  // Controla qué bloque de contenido mostrar (cargando, éxito, pendiente, error)
   const [uiStatus, setUiStatus] = useState<"idle" | "ok" | "warn" | "error">(
-    "idle"
+    "idle" // Comienza en 'idle' para mostrar el loader
   );
-  // Estados para guardar los datos de sessionStorage
+  // Almacena los datos del usuario recuperados de sessionStorage
   const [nombre, setNombre] = useState<string | null>(null);
   const [signo, setSigno] = useState<string | null>(null);
+  // *** AÑADIDO: Estado para guardar el número de WhatsApp ***
+  const [whatsapp, setWhatsapp] = useState<string | null>(null);
+  // ********************************************************
 
 
-  // Reporte para enviar a la API de logs (sin cambios)
+  // Objeto con datos para enviar a la API de logs (sin cambios)
   const report: AnyDict = {
     message: "BackURL recibido en /gracias (página de USUARIO)",
     params_crudos: allParams,
@@ -127,39 +139,54 @@ export default function GraciasContent() {
   };
 
 
-  // useEffect para leer los datos de sessionStorage (sin cambios)
+  // --- useEffect para leer datos de sessionStorage (ACTUALIZADO) ---
+  // Se ejecuta una sola vez al cargar el componente para personalizar el mensaje.
   useEffect(() => {
+    // Usamos try/catch por si sessionStorage no está disponible o falla
     try {
+      // Intentamos leer el objeto guardado desde CheckoutContent
       const dataString = sessionStorage.getItem('checkoutData');
       if (dataString) {
+        // Parseamos el JSON guardado
         const data: CheckoutData = JSON.parse(dataString);
+        // Si encontramos nombre, lo guardamos en el estado local
         if (data.name) {
           setNombre(data.name);
         }
+        // Si encontramos signo, lo guardamos en el estado local
         if (data.signo) {
           setSigno(data.signo);
         }
+        // *** AÑADIDO: Leer y guardar WhatsApp ***
+        if (data.whatsapp) {
+          setWhatsapp(data.whatsapp); // Guardamos el número local (ej: 099...)
+        }
+        // **************************************
         console.log("Datos recuperados de sessionStorage:", data);
+        // Limpiamos el item para no reutilizarlo si el usuario navega
         sessionStorage.removeItem('checkoutData');
         console.log("Datos de sessionStorage eliminados después de leer.");
       } else {
+        // No se encontró el item, puede ser navegación directa o un error previo
         console.warn("No se encontraron datos en sessionStorage ('checkoutData').");
       }
     } catch (e) {
       console.error("Error al leer o parsear datos de sessionStorage:", e);
     }
-  }, []);
+  }, []); // El array vacío asegura ejecución única al montar
 
 
-  // --- Efecto principal para procesar el pago (sin cambios) ---
+  // --- Efecto principal para procesar el estado del pago (sin cambios) ---
   useEffect(() => {
     async function procesarBackUrl() {
+      // 1) Validación: Si no tenemos ID de suscriptor o preapproval, es un error
       if (!id || !preapproval_id) {
         console.error("Error: Faltan id_suscriptor o preapproval_id en URL");
-        setUiStatus("error");
-        return;
+        setUiStatus("error"); // Mostramos UI de error
+        return; // Salimos de la función
       }
 
+      // 2) Enviar log al backend (sin esperar respuesta, "fire and forget")
       try {
         fetch("/api/log-backurl", {
           method: "POST",
@@ -170,14 +197,18 @@ export default function GraciasContent() {
         console.warn("Fallo al enviar log de backurl:", e);
       }
 
+      // 3) Normalizar el status recibido de Mercado Pago (minúsculas, sin espacios)
       const statusNorm = String(status || "").toLowerCase().trim();
       console.log("Status normalizado:", statusNorm);
 
+      // Lista de estados considerados exitosos (incluye vacío por si MP no lo envía)
       const positivos = ["authorized", "approved", "success", "active", ""];
       const esPositivo = positivos.includes(statusNorm);
 
+      // --- Rama: Pago Exitoso o Indeterminado ---
       if (esPositivo) {
         console.log("Status considerado POSITIVO. Intentando activar provisorio...");
+        // Intentamos activar el estado premium provisorio llamando a otra API
         try {
           const r = await fetch("/api/activar-premium-provisorio", {
             method: "POST",
@@ -185,59 +216,87 @@ export default function GraciasContent() {
             body: JSON.stringify({
               id_suscriptor: id,
               preapproval_id,
-              backParams: { ...allParams, ...envSnapshot },
+              backParams: { ...allParams, ...envSnapshot }, // Enviamos todos los params por si acaso
             }),
           });
+          // Intentamos parsear la respuesta, default a {} si falla
           const j = await r.json().catch(() => ({}));
           console.log("Respuesta de /activar-premium-provisorio:", { status: r.status, body: j });
 
+          // Si la API respondió OK y el cuerpo tiene { ok: true }
           if (r.ok && j?.ok) {
-            setUiStatus("ok");
-            lanzarConfeti();
+            setUiStatus("ok"); // Mostramos UI de éxito
+            lanzarConfeti(); // Lanzamos confeti
           } else {
+            // Si la activación falló (ej. ID no encontrado en DB)
             console.warn("Activación provisoria falló:", j);
-            setUiStatus("warn");
+            setUiStatus("warn"); // Mostrar como pendiente/advertencia
           }
         } catch (e: any) {
+          // Si falló el fetch a la API de activación
           console.error("Error en fetch a /activar-premium-provisorio:", e);
-          setUiStatus("error");
+          setUiStatus("error"); // Mostramos UI de error
         }
-        return;
+        return; // Salimos de la función
       }
 
+      // --- Rama: Pago Pendiente ---
       if (statusNorm === "pending" || statusNorm === "in_process") {
         console.log("Status PENDIENTE.");
-        setUiStatus("warn");
-        return;
+        setUiStatus("warn"); // Mostramos UI de pendiente/advertencia
+        return; // Salimos de la función
       }
 
+      // --- Rama: Pago Rechazado o Fallido ---
+      // Cualquier otro status se considera error
       console.log("Status considerado ERROR/RECHAZADO:", statusNorm);
-      setUiStatus("error");
+      setUiStatus("error"); // Mostramos UI de error
     }
 
+    // Ejecutamos la función asíncrona definida arriba
     procesarBackUrl();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Dependencias vacías para ejecutar solo una vez al montar
 
   // --- Función de Confeti (sin cambios) ---
   function lanzarConfeti() {
-    const duration = 8000;
+    const duration = 8000; // Duración aumentada ligeramente
     const end = Date.now() + duration;
+
+    // Función recursiva que se llama con requestAnimationFrame
     (function frame() {
-      confetti({ particleCount: 8, angle: 60, spread: 80, origin: { x: 0 } });
-      confetti({ particleCount: 8, angle: 120, spread: 80, origin: { x: 1 } });
-      if (Date.now() < end) requestAnimationFrame(frame);
+      // Lanza confeti desde la izquierda
+      confetti({
+        particleCount: 8, // Ajustado
+        angle: 60,
+        spread: 80, // Ajustado
+        origin: { x: 0 },
+        // *** ELIMINADO colors: [...] para usar los colores por defecto ***
+      });
+      // Lanza confeti desde la derecha
+      confetti({
+        particleCount: 8,
+        angle: 120,
+        spread: 80,
+        origin: { x: 1 },
+        // *** ELIMINADO colors: [...] para usar los colores por defecto ***
+      });
+
+      // Si aún no ha pasado la duración, pide el siguiente frame
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
     })();
   }
 
-  // --- Renderizado de UI (sin cambios respecto a la versión anterior) ---
+
+  // --- Renderizado de UI ---
   return (
     <div className="mx-auto max-w-2xl p-4 py-16 sm:py-24 text-center text-white">
 
-      {/* Estado Idle */}
+      {/* Estado Idle: Muestra loader mientras se procesa el pago */}
        {uiStatus === "idle" && (
          <div className="space-y-6 flex flex-col items-center">
-             {/* *** AHORA Loader2 ESTÁ IMPORTADO Y DEBERÍA FUNCIONAR *** */}
              <Loader2 className="w-16 h-16 text-slate-400 animate-spin" />
              <h1 className="text-2xl sm:text-3xl font-bold text-slate-300">
                 Procesando información del pago...
@@ -245,13 +304,15 @@ export default function GraciasContent() {
          </div>
        )}
 
-      {/* Camino Feliz */}
+      {/* ===== DISEÑO 1: EL CAMINO FELIZ (ACTUALIZADO) ===== */}
       {uiStatus === "ok" && (
         <div className="space-y-6 flex flex-col items-center">
           <CheckIcon />
+          {/* Saludo personalizado con nombre */}
           <h1 className="text-3xl sm:text-4xl font-bold text-white">
             ¡Felicitaciones{nombre ? `, ${nombre}` : ""}!
           </h1>
+          {/* Mensaje personalizado con signo */}
           <p className="text-lg text-slate-300 -mt-2">
             Tu suscripción premium
             {signo ? ` para ${signo}` : ""} está activa.
@@ -260,17 +321,24 @@ export default function GraciasContent() {
             Acabamos de enviarte tu primer mensaje de bienvenida.
             Estás a punto de recibir la mejor energía del universo.
           </p>
+
+          {/* ONBOARDING (ACTUALIZADO PASO 1) */}
           <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-left space-y-5">
             <h2 className="text-xl font-semibold text-white">
               Pasos siguientes:
             </h2>
+            {/* *** PASO 1 MODIFICADO para incluir WhatsApp *** */}
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">1.</div>
               <p className="text-base">
                 <strong>Revisá tu WhatsApp.</strong> Ya deberías tener nuestro
-                mensaje en el número que registraste.
+                mensaje en el número que registraste
+                {/* Mostramos el número si lo tenemos */}
+                {whatsapp ? ` (${whatsapp})` : ""}.
               </p>
             </div>
+            {/* ******************************************* */}
+            {/* Paso 2 (sin cambios) */}
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">2.</div>
               <p className="text-base">
@@ -279,13 +347,14 @@ export default function GraciasContent() {
                 y audios.
               </p>
             </div>
+            {/* Paso 3 (sin cambios) */}
             <div className="flex items-start gap-3">
               <div className="font-bold text-2xl text-indigo-400 pt-0.5">3.</div>
               <p className="text-base">
                 <strong>¿No recibiste nada?</strong> Si en 5 minutos no ves nuestro
                 mensaje, escríbenos a{" "}
                 <a
-                  href="mailto:soporte@tuhoroscopocosmico.com"
+                  href="mailto:soporte@tuhoroscopocosmico.com" // Email de soporte
                   className="font-bold underline hover:text-indigo-300"
                 >
                   soporte@tuhoroscopocosmico.com
@@ -296,7 +365,7 @@ export default function GraciasContent() {
         </div>
       )}
 
-      {/* Pago Pendiente */}
+      {/* Pago Pendiente (sin cambios) */}
       {uiStatus === "warn" && (
         <div className="space-y-6 flex flex-col items-center">
           <ClockIcon />
@@ -316,7 +385,7 @@ export default function GraciasContent() {
         </div>
       )}
 
-      {/* Error en el Pago */}
+      {/* Error en el Pago (sin cambios) */}
       {uiStatus === "error" && (
         <div className="space-y-6 flex flex-col items-center">
           <ErrorIcon />
@@ -333,7 +402,7 @@ export default function GraciasContent() {
               Por favor, vuelve a intentarlo.
             </p>
             <a
-              href="/checkout"
+              href="/checkout" // Enlace a tu página de checkout unificada
               className="inline-block rounded-lg px-8 py-3 font-bold text-violet-900 bg-gradient-to-r from-amber-400 to-pink-400 shadow-lg hover:from-amber-300 hover:to-pink-300 hover:scale-[1.03]"
             >
               Intentar pagar de nuevo
