@@ -40,8 +40,9 @@ function TestimonioCard({ testimonio }: { testimonio: TestimonioData }) {
     <div className="bg-white/10 border border-white/15 rounded-xl p-6 shadow-lg backdrop-blur-sm relative overflow-hidden">
         {/* Ícono de cita decorativo (opcional) */}
         <Quote className="absolute top-4 right-4 h-12 w-12 text-white/10 transform rotate-12" strokeWidth={1} />
+        {/* SOLUCIÓN (Línea 32) */}
         <blockquote className="text-white/80 italic mb-4 relative z-10">
-            "{testimonio.cita}"
+          &ldquo;{testimonio.cita}&rdquo;
         </blockquote>
         <footer className="text-sm text-white relative z-10">
             <span className="font-semibold">{testimonio.autor}</span>

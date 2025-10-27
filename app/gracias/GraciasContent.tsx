@@ -6,17 +6,76 @@ import confetti from "canvas-confetti";
 
 type AnyDict = Record<string, any>;
 
+// Componente visual para un ícono de check (Éxito)
+function CheckIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-16 h-16 text-emerald-400"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
+// Componente visual para un ícono de reloj (Pendiente)
+function ClockIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-16 h-16 text-amber-400"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
+// Componente visual para un ícono de error (Error)
+function ErrorIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-16 h-16 text-rose-500"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+      />
+    </svg>
+  );
+}
+
 export default function GraciasContent() {
   const sp = useSearchParams();
 
   // ─────────────────────────────────────────────────────────────
-  // 1) Captura cruda de TODO lo que venga por querystring
+  // TODA LA LÓGICA DE DIAGNÓSTICO SE MANTIENE
   // ─────────────────────────────────────────────────────────────
   const allParams = useMemo(() => {
     const obj: AnyDict = {};
     try {
       for (const [k, v] of Array.from(sp.entries())) {
-        // si un parámetro viene duplicado, lo guardamos como array
         if (obj[k] === undefined) obj[k] = v;
         else obj[k] = Array.isArray(obj[k]) ? [...obj[k], v] : [obj[k], v];
       }
@@ -24,83 +83,58 @@ export default function GraciasContent() {
     return obj;
   }, [sp]);
 
-  // 2) Campos “clásicos” (puede que alguno no venga)
   const id = (allParams.id_suscriptor ?? allParams.id ?? "") as string;
-  const preapproval_id = (allParams.preapproval_id ?? allParams.preapproval ?? "") as string;
+  const preapproval_id = (
+    allParams.preapproval_id ?? allParams.preapproval ?? ""
+  ) as string;
   const status = (allParams.status ?? allParams.collection_status ?? "") as string;
-  const payer_email = (allParams.payer_email ?? allParams.email ?? "") as string;
-  const external_reference = (allParams.external_reference ?? "") as string;
 
-  // 3) Datos extra del entorno/URL para diagnóstico
   const envSnapshot = useMemo(
     () => ({
       href: typeof window !== "undefined" ? window.location.href : "",
-      referrer: typeof document !== "undefined" ? document.referrer : "",
-      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
-      timestamp: new Date().toISOString(),
     }),
     []
   );
 
-  // Panel de estado/errores y timeline
-  const [uiStatus, setUiStatus] = useState<"idle" | "ok" | "warn" | "error">("idle");
-  const [uiTitle, setUiTitle] = useState<string>("Analizando respuesta de Mercado Pago…");
-  const [logs, setLogs] = useState<Array<{ step: string; data?: AnyDict; level?: "info" | "warn" | "error" }>>([]);
-
-  const pushLog = (step: string, data?: AnyDict, level: "info" | "warn" | "error" = "info") =>
-    setLogs((p) => [...p, { step, data, level }]);
-
-  // Report consolidado para copiar
+  const [uiStatus, setUiStatus] = useState<"idle" | "ok" | "warn" | "error">(
+    "idle"
+  );
+  
+  // Reporte para enviar a la API de logs
   const report: AnyDict = {
-    message: "BackURL recibido en /gracias-premium (no hay redirecciones activas)",
+    message: "BackURL recibido en /gracias (página de USUARIO)",
     params_crudos: allParams,
-    campos: { id_suscriptor: id, preapproval_id, status, payer_email, external_reference },
+    campos: { id_suscriptor: id, preapproval_id, status },
     entorno: envSnapshot,
-    timeline: logs,
   };
 
   useEffect(() => {
     async function procesarBackUrl() {
-      // 0) log de entrada
-      pushLog("INICIO", { ...report });
-
-      // 1) Validación mínima (no redirige; sólo muestra)
+      // 1) Validación mínima
       if (!id || !preapproval_id) {
-        const detail = { motivo: "Falta id_suscriptor o preapproval_id", id, preapproval_id };
-        pushLog("VALIDACION_MINIMA_FALLA", detail, "warn");
-        setUiStatus("warn");
-        setUiTitle("⚠️ Faltan parámetros mínimos (id_suscriptor o preapproval_id).");
-        // window.location.href = "/"; // ← redirección deshabilitada
+        setUiStatus("error"); // Faltan params, mostramos error
         return;
       }
 
-      // 2) Enviar log al servidor (si existe /api/log-backurl) para que quede en Vercel
+      // 2) Enviar log al servidor (en segundo plano)
       try {
-        const body = {
-          tipo: "BACKURL_MP",
-          ...report,
-        };
-        const res = await fetch("/api/log-backurl", {
+        fetch("/api/log-backurl", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ tipo: "BACKURL_MP_USUARIO", ...report }),
         });
-        pushLog("LOG_BACKURL_POST", { ok: res.ok, status: res.status });
-      } catch (e: any) {
-        pushLog("LOG_BACKURL_POST_ERROR", { error: String(e) }, "warn");
-      }
+      } catch (e) {}
 
       // 3) Normalizar status
       const statusNorm = String(status || "").toLowerCase().trim();
-      pushLog("STATUS_NORMALIZADO", { status_raw: status, statusNorm });
 
-      // Estados “positivos” conocidos en distintos flujos
-      const positivos = ["authorized", "approved", "success", "complete", "finished", "active"];
+      // Estados positivos
+      const positivos = ["authorized", "approved", "success", "active"];
       const esPositivo = positivos.includes(statusNorm) || statusNorm === "";
+      
       if (esPositivo) {
-        // Intento activar premium provisorio (NO redirige, sólo muestra resultado)
+        // Intento activar premium provisorio
         try {
-          pushLog("ACTIVAR_PREMIUM_PROVISORIO_TRY", { id, preapproval_id });
           const r = await fetch("/api/activar-premium-provisorio", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -111,49 +145,27 @@ export default function GraciasContent() {
             }),
           });
           const j = await r.json().catch(() => ({}));
-          pushLog("ACTIVAR_PREMIUM_PROVISORIO_RESP", { http: r.status, json: j });
+
           if (r.ok && j?.ok) {
             setUiStatus("ok");
-            setUiTitle("✅ Premium provisorio activado (sin redirección).");
             lanzarConfeti();
           } else {
-            setUiStatus("warn");
-            setUiTitle("⚠️ No se pudo activar premium provisorio (revisar respuesta).");
+            setUiStatus("warn"); // Falló la activación, queda pendiente
           }
         } catch (e: any) {
-          pushLog("ACTIVAR_PREMIUM_PROVISORIO_ERROR", { error: String(e) }, "error");
-          setUiStatus("error");
-          setUiTitle("❌ Error activando premium provisorio.");
+          setUiStatus("error"); // Error de red
         }
-        // return; // ← si querés cortar acá, dejá el return. Lo dejo comentado para seguir recolectando data.
+        return;
       }
 
-      // 4) Si el estado parece “pendiente”, consultamos a nuestra API el init_point
+      // 4) Estados pendientes
       if (statusNorm === "pending" || statusNorm === "in_process") {
-        try {
-          pushLog("PENDIENTE_CHECK_PREAPPROVAL_STATUS_TRY", { id });
-          const r = await fetch(`/api/preapproval-status?id_suscriptor=${encodeURIComponent(id)}`, {
-            cache: "no-store",
-          });
-          const j = await r.json().catch(() => ({}));
-          pushLog("PENDIENTE_CHECK_PREAPPROVAL_STATUS_RESP", { http: r.status, json: j });
-          // if (j?.init_point) window.location.href = j.init_point; // ← deshabilitado
-          setUiStatus("warn");
-          setUiTitle("⏳ Suscripción pendiente. Se consultó /preapproval-status (sin redirigir).");
-        } catch (e: any) {
-          pushLog("PENDIENTE_CHECK_PREAPPROVAL_STATUS_ERROR", { error: String(e) }, "error");
-          setUiStatus("error");
-          setUiTitle("❌ Error consultando estado de preapproval.");
-        }
+        setUiStatus("warn");
+        return;
       }
 
-      // 5) Si llega un estado desconocido, lo dejamos visible
-      if (!esPositivo && statusNorm && statusNorm !== "pending" && statusNorm !== "in_process") {
-        pushLog("ESTADO_NO_RECONOCIDO", { statusNorm }, "warn");
-        setUiStatus("warn");
-        setUiTitle(`⚠️ Estado no reconocido por el cliente: "${statusNorm}" (no se redirige).`);
-        // window.location.href = "/"; // ← deshabilitado
-      }
+      // 5) Otros estados (rechazado, fallido, etc.)
+      setUiStatus("error");
     }
 
     procesarBackUrl();
@@ -161,7 +173,7 @@ export default function GraciasContent() {
   }, []);
 
   // ─────────────────────────────────────────────────────────────
-  // UI helpers
+  // UI HELPER: FUNCIÓN DE CONFETI
   // ─────────────────────────────────────────────────────────────
   function lanzarConfeti() {
     const duration = 3000;
@@ -173,111 +185,115 @@ export default function GraciasContent() {
     })();
   }
 
-  async function copiarReporte() {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
-      pushLog("CLIPBOARD_OK");
-    } catch (e: any) {
-      pushLog("CLIPBOARD_ERROR", { error: String(e) }, "warn");
-    }
-  }
-
-  // Paleta de estilos rápidos (Tailwind-friendly; adaptá a tu setup)
-  const tone =
-    uiStatus === "ok"
-      ? "bg-emerald-950/40 border-emerald-500 text-emerald-100"
-      : uiStatus === "warn"
-      ? "bg-amber-950/40 border-amber-400 text-amber-100"
-      : uiStatus === "error"
-      ? "bg-rose-950/40 border-rose-500 text-rose-100"
-      : "bg-slate-900/60 border-slate-600 text-slate-100";
-
+  // ─────────────────────────────────────────────────────────────
+  // NUEVO RETURN (UI PARA EL USUARIO)
+  // ─────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-3xl p-4 space-y-6">
-      {/* Banner de estado visible */}
-      <div className={`rounded-xl border p-4 ${tone}`}>
-        <h1 className="text-xl font-bold mb-1">
-          {uiTitle || "Analizando respuesta de Mercado Pago…"}
-        </h1>
-        <p className="opacity-80 text-sm">
-          Esta pantalla está en <strong>modo diagnóstico</strong>. No hay redirecciones activas; todo lo recibido
-          se muestra abajo y también se intenta registrar un log en el servidor.
-        </p>
-      </div>
+    <div className="mx-auto max-w-2xl p-4 py-16 sm:py-24 text-center text-white">
+      {/* Mientras uiStatus === 'idle', el Suspense de page.tsx 
+        muestra "Cargando...".
+        Solo renderizamos cuando tenemos un estado final.
+      */}
 
-      {/* Botón copiar todo */}
-      <div className="flex gap-2">
-        <button
-          onClick={copiarReporte}
-          className="rounded-md border px-3 py-1 text-sm hover:bg-white/10"
-          title="Copia todo el reporte en el portapapeles"
-        >
-          Copiar reporte JSON
-        </button>
-      </div>
+      {/* ===== DISEÑO 1: EL CAMINO FELIZ ===== */}
+      {uiStatus === "ok" && (
+        <div className="space-y-6 flex flex-col items-center">
+          <CheckIcon />
+          <h1 className="text-3xl sm:text-4xl font-bold text-white">
+            ¡Felicitaciones! Tu suscripción está activa.
+          </h1>
+          <p className="text-lg text-slate-300">
+            Acabamos de enviarte tu primer mensaje de bienvenida.
+            Estás a punto de recibir la mejor energía del universo.
+          </p>
 
-      {/* Sección: campos clásicos */}
-      <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
-        <h2 className="font-semibold mb-2">Campos principales</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-sm">
-          <div><span className="opacity-70">id_suscriptor:</span> <code>{String(id || "—")}</code></div>
-          <div><span className="opacity-70">preapproval_id:</span> <code>{String(preapproval_id || "—")}</code></div>
-          <div><span className="opacity-70">status:</span> <code>{String(status || "—")}</code></div>
-          <div><span className="opacity-70">payer_email:</span> <code>{String(payer_email || "—")}</code></div>
-          <div className="md:col-span-2"><span className="opacity-70">external_reference:</span> <code>{String(external_reference || "—")}</code></div>
+          {/* ONBOARDING */}
+          <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-left space-y-5">
+            <h2 className="text-xl font-semibold text-white">Pasos siguientes:</h2>
+            
+            <div className="flex items-start gap-3">
+              <div className="font-bold text-2xl text-indigo-400 pt-0.5">1.</div>
+              <p className="text-base">
+                <strong>Revisá tu WhatsApp.</strong> Ya deberías tener nuestro
+                mensaje en el número que registraste.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="font-bold text-2xl text-indigo-400 pt-0.5">2.</div>
+              <p className="text-base">
+                <strong>¡Agréganos a tus contactos!</strong> Este es el paso más
+                importante para asegurar que siempre recibas nuestros mensajes
+                y audios.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="font-bold text-2xl text-indigo-400 pt-0.5">3.</div>
+              <p className="text-base">
+                <strong>¿No recibiste nada?</strong> Si en 5 minutos no ves nuestro
+                mensaje, escríbenos a{" "}
+                <a
+                  href="mailto:soporte@tuhoroscopo.com" // <-- CAMBIA ESTE EMAIL
+                  className="font-bold underline hover:text-indigo-300"
+                >
+                  soporte@tuhoroscopo.com
+                </a>.
+              </p>
+            </div>
+          </div>
         </div>
-      </section>
+      )}
 
-      {/* Sección: parámetros crudos */}
-      <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
-        <h2 className="font-semibold mb-2">Parámetros crudos (querystring)</h2>
-        <pre className="text-xs whitespace-pre-wrap break-words">
-          {JSON.stringify(allParams, null, 2)}
-        </pre>
-      </section>
+      {/* ===== DISEÑO 2: PAGO PENDIENTE ===== */}
+      {uiStatus === "warn" && (
+        <div className="space-y-6 flex flex-col items-center">
+          <ClockIcon />
+          <h1 className="text-3xl sm:text-4xl font-bold text-amber-400">
+            Tu pago está pendiente.
+          </h1>
+          <p className="text-lg text-slate-300">
+            No te preocupes, esto es normal. A veces Mercado Pago (o la
+            tarjeta) demora unos minutos en procesar la suscripción.
+          </p>
+          <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 text-slate-300">
+            <p>
+              Te avisaremos por WhatsApp (al número que registraste)
+              apenas se confirme el pago. No necesitas hacer nada más.
+            </p>
+          </div>
+        </div>
+      )}
 
-      {/* Sección: entorno */}
-      <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
-        <h2 className="font-semibold mb-2">Entorno/URL</h2>
-        <pre className="text-xs whitespace-pre-wrap break-words">
-          {JSON.stringify(envSnapshot, null, 2)}
-        </pre>
-      </section>
-
-      {/* Sección: timeline / acciones realizadas */}
-      <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
-        <h2 className="font-semibold mb-2">Acciones y logs (timeline)</h2>
-        {logs.length === 0 ? (
-          <p className="text-sm opacity-70">Sin registros aún…</p>
-        ) : (
-          <ul className="space-y-2 text-xs">
-            {logs.map((l, i) => (
-              <li
-                key={i}
-                className={`rounded-md border p-2 ${
-                  l.level === "error"
-                    ? "border-rose-500/60 bg-rose-950/30"
-                    : l.level === "warn"
-                    ? "border-amber-400/60 bg-amber-950/30"
-                    : "border-slate-600/60 bg-slate-950/30"
-                }`}
-              >
-                <div className="font-mono text-[11px] opacity-80">{l.step}</div>
-                {l.data && (
-                  <pre className="mt-1 whitespace-pre-wrap break-words">
-                    {JSON.stringify(l.data, null, 2)}
-                  </pre>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <footer className="opacity-60 text-xs">
-        Modo diagnóstico activo: <strong>sin redirecciones</strong>. Descomentar en el código si
-        querés volver a habilitarlas.
-      </footer>
+      {/* ===== DISEÑO 3: ERROR EN EL PAGO ===== */}
+      {uiStatus === "error" && (
+        <div className="space-y-6 flex flex-col items-center">
+          <ErrorIcon />
+          <h1 className="text-3xl sm:text-4xl font-bold text-rose-500">
+            Ups, ocurrió un error.
+          </h1>
+          <p className="text-lg text-slate-300">
+            No te preocupes, no se realizó ningún cargo en tu tarjeta.
+          </p>
+          <div className="w-full rounded-lg border border-slate-700 bg-slate-900/40 p-6 space-y-5">
+            <p>
+              Parece que hubo un problema al procesar tu suscripción
+              (el pago pudo ser rechazado o faltaron datos).
+              Por favor, vuelve a intentarlo.
+            </p>
+            <a
+              href="/#checkout" // <-- Ajusta esto a tu página de checkout
+              className="inline-block rounded-lg px-8 py-3 font-bold text-white"
+              style={{
+                // Re-usamos el estilo del botón CTA
+                background: "linear-gradient(90deg, #F5A623 0%, #FF4E6D 100%)",
+              }}
+            >
+              Intentar pagar de nuevo
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,8 +5,24 @@ import GraciasContent from "./GraciasContent";
 
 export default function GraciasPage() {
   return (
-    <Suspense fallback={<div className="text-center text-white py-16">Cargando...</div>}>
-      <GraciasContent />
-    </Suspense>
+    <div
+      className="w-full min-h-screen"
+      style={{
+        // Re-usamos el fondo cósmico del resto del sitio
+        backgroundImage: "url('/bg-stars.svg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <Suspense
+        fallback={
+          <div className="text-center text-white py-16 text-lg">
+            Cargando...
+          </div>
+        }
+      >
+        <GraciasContent />
+      </Suspense>
+    </div>
   );
 }
