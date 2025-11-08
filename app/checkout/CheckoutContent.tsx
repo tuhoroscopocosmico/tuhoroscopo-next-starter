@@ -126,9 +126,8 @@ export default function CheckoutContent() {
         pais: 'UY',
         fuente: 'web-vercel-checkout-v2',
         version_politica: 'v1.0',
-        acepto_politicas: acepta,
-        monto: 390,
-        moneda: 'UYU'
+        acepto_politicas: acepta
+
       };
 
       // --- Llamada a la API Unificada (sin cambios) ---
