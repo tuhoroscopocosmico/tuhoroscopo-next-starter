@@ -125,7 +125,7 @@ export default function CheckoutContent() {
         whatsapp: waE164,
         pais: 'UY',
         fuente: 'web-vercel-checkout-v2',
-        version_politica: 'v1.0',
+        version_politicas: 'v1.0',
         acepto_politicas: acepta
 
       };
