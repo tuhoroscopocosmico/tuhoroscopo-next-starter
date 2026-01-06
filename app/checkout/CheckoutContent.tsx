@@ -45,7 +45,7 @@ function normalizarUY(num: string): { telefono: string; whatsapp: string } {
   const digits = num.replace(/\D/g, '');
 
   // Validación estricta UY
-  if (!/^09\d{8}$/.test(digits)) {
+  if (!/^09\d{7}$/.test(digits)) {
     throw new Error(`Número de WhatsApp inválido (UY): ${num}`);
   }
 
@@ -138,10 +138,10 @@ export default function CheckoutContent() {
     }
 
     // Validación estricta del input del usuario
-    const whatsappRegex = /^09\d{8}$/;
+    const whatsappRegex = /^09\d{7}$/;
     if (!whatsappRegex.test(formData.whatsapp)) {
       setError(
-        'El número de WhatsApp debe comenzar con 09 y tener 10 dígitos (ej: 0999863263).'
+        'El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099863263).'
       );
       return;
     }
