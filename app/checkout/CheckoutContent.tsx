@@ -1,9 +1,20 @@
 // ============================================================
 // === Archivo: app/checkout/CheckoutContent.tsx
-// === Descripción: Client Component con diseño unificado ("Tablero Cósmico").
-// === Refinamientos: Panel único, títulos simplificados, botón vibrante.
-// === VERIFICACIÓN: Llama a /api/iniciar-checkout y guarda datos en sessionStorage.
+// === Descripción:
+// === Client Component del checkout (FRONTEND)
+// ===
+// === Responsabilidades de este archivo:
+// === 1. Validar inputs del usuario
+// === 2. Normalizar el WhatsApp correctamente (UY)
+// === 3. Enviar payload LIMPIO al backend
+// === 4. Redirigir a Mercado Pago
+// ===
+// === REGLA DE ORO (UY):
+// === - Input usuario: 09XXXXXXXX (10 dígitos)
+// === - Teléfono DB:   9XXXXXXXX  (9 dígitos)
+// === - WhatsApp:      +5989XXXXXXXX
 // ============================================================
+
 'use client';
 
 import { useState, FormEvent, ChangeEvent } from 'react';
@@ -11,172 +22,197 @@ import { Loader2 } from 'lucide-react';
 import LeadFormFields from '@/components/LeadFormFields';
 import SubscriptionSummary from '@/components/SubscriptionSummary';
 
+// ============================================================
+// === Tipado del formulario
+// ============================================================
 interface FormData {
   name: string;
   signo: string;
   contenidoPreferido: string;
-  whatsapp: string;
+  whatsapp: string; // SIEMPRE número local ingresado por el usuario
 }
 
-// Helper para normalizar WhatsApp (sin cambios)
+// ============================================================
+// === Normalización de WhatsApp Uruguay (FUNCIÓN FINAL)
+// ============================================================
+// Entrada esperada: 09XXXXXXXX (10 dígitos)
+// Salida:
+//   telefono: 9XXXXXXXX
+//   whatsapp: +5989XXXXXXXX
+// ============================================================
 function normalizarUY(num: string): { telefono: string; whatsapp: string } {
-    const solo = num.replace(/[^\d]/g, '');
-    const sin0 = solo.replace(/^0/, '');
-    // Caso: 091234567 -> 91234567
-    if (sin0.length === 8 && solo.startsWith('09')) {
-      // Devolvemos el número *con* 9 dígitos para la DB
-      return { telefono: `9${sin0}`, whatsapp: `+5989${sin0}` };
-    }
-    // Caso: 91234567 -> 91234567 (ya está bien)
-    if (sin0.length === 9 && sin0.startsWith('9')) {
-      return { telefono: sin0, whatsapp: `+598${sin0}` };
-    }
-    // Caso fallback o inesperado
-    console.warn("Número WhatsApp no normalizado como se esperaba:", num, "->", { telefono: sin0, whatsapp: `+598${sin0}` })
-    return { telefono: sin0, whatsapp: `+598${sin0}` }; // Devolver algo, aunque puede ser inválido
+  // Eliminamos cualquier cosa que no sea número
+  const digits = num.replace(/\D/g, '');
+
+  // Validación estricta UY
+  if (!/^09\d{8}$/.test(digits)) {
+    throw new Error(`Número de WhatsApp inválido (UY): ${num}`);
+  }
+
+  // Quitamos el 0 inicial → queda 9XXXXXXXX
+  const telefono = digits.slice(1);
+
+  // Construimos formato E.164
+  const whatsapp = `+598${telefono}`;
+
+  // Log defensivo (solo frontend)
+  console.log('[normalizarUY]', {
+    input: num,
+    digits,
+    telefono,
+    whatsapp,
+  });
+
+  return { telefono, whatsapp };
 }
 
-
+// ============================================================
+// === Componente principal
+// ============================================================
 export default function CheckoutContent() {
+  // -------------------- STATE --------------------
   const [formData, setFormData] = useState<FormData>({
     name: '',
     signo: '',
     contenidoPreferido: '',
     whatsapp: '',
   });
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [acepta, setAcepta] = useState<boolean>(false);
 
-  // Manejador de cambios en inputs (sin cambios)
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [acepta, setAcepta] = useState(false);
+
+  // ============================================================
+  // === Handler de inputs
+  // ============================================================
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
+
+    // Para WhatsApp SOLO dejamos números
     if (name === 'whatsapp') {
-      setFormData((prev) => ({ ...prev, [name]: value.replace(/[^\d]/g, '') }));
+      setFormData(prev => ({
+        ...prev,
+        [name]: value.replace(/\D/g, ''),
+      }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+      }));
     }
+
     setError(null);
   };
 
-  // Manejador de cambio en checkbox (sin cambios)
+  // ============================================================
+  // === Checkbox políticas
+  // ============================================================
   const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
     setAcepta(e.target.checked);
     setError(null);
   };
 
-  // Manejador del submit
+  // ============================================================
+  // === Submit principal
+  // ============================================================
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
-    // Validaciones (sin cambios)
+    // ---------------- VALIDACIONES BÁSICAS ----------------
     if (!acepta) {
       setError('Debes aceptar la Política de Privacidad para continuar.');
       return;
     }
-    if (!formData.name.trim() || !formData.signo || !formData.contenidoPreferido || !formData.whatsapp.trim()) {
+
+    if (
+      !formData.name.trim() ||
+      !formData.signo ||
+      !formData.contenidoPreferido ||
+      !formData.whatsapp.trim()
+    ) {
       setError('Por favor, completa todos los campos.');
       return;
     }
-    const whatsappSanitized = formData.whatsapp.replace(/\s+/g, ''); // Número local (ej: 09...)
-    const whatsappRegex = /^09\d{7}$/;
-    if (!whatsappRegex.test(whatsappSanitized)) {
-       setError('El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099123456).');
-       return;
+
+    // Validación estricta del input del usuario
+    const whatsappRegex = /^09\d{8}$/;
+    if (!whatsappRegex.test(formData.whatsapp)) {
+      setError(
+        'El número de WhatsApp debe comenzar con 09 y tener 10 dígitos (ej: 0999863263).'
+      );
+      return;
     }
 
-    // *** PASO 1: GUARDAR DATOS EN SESSIONSTORAGE (INCLUYE WHATSAPP LOCAL) ***
+    // ---------------- SESSION STORAGE ----------------
     try {
-        const checkoutData = {
-            name: formData.name.trim(),
-            signo: formData.signo,
-            contenidoPreferido: formData.contenidoPreferido,
-            whatsapp: whatsappSanitized // Guardamos el número local ej: 099863263
-        };
-        sessionStorage.setItem('checkoutData', JSON.stringify(checkoutData));
-        console.log('Datos guardados en sessionStorage:', checkoutData);
-    } catch(sessionError) {
-        console.warn("No se pudo guardar en sessionStorage:", sessionError);
-        // Continuamos igualmente, no es crítico para el pago
+      sessionStorage.setItem(
+        'checkoutData',
+        JSON.stringify({
+          name: formData.name.trim(),
+          signo: formData.signo,
+          contenidoPreferido: formData.contenidoPreferido,
+          whatsapp: formData.whatsapp,
+        })
+      );
+    } catch (e) {
+      console.warn('No se pudo guardar sessionStorage:', e);
     }
-    // **************************************************************************
 
-
-    // Iniciar carga
     setIsLoading(true);
 
     try {
-      // Normalizar WhatsApp para el backend
-      const { telefono, whatsapp: waE164 } = normalizarUY(whatsappSanitized);
-      if (!telefono || telefono.length !== 9 || !telefono.startsWith('9')) {
-         console.error("Error post-normalización:", {telefono, waE164});
-         throw new Error('El número de WhatsApp proporcionado no es válido tras normalizar.');
-      }
+      // ---------------- NORMALIZACIÓN FINAL ----------------
+      const { telefono, whatsapp } = normalizarUY(formData.whatsapp);
 
-      // Payload para la API unificada (sin cambios)
+      // ---------------- PAYLOAD AL BACKEND ----------------
       const payload = {
         nombre: formData.name.trim(),
-        telefono: telefono,
+        telefono,                 // 9XXXXXXXX
+        whatsapp,                 // +5989XXXXXXXX
         signo: formData.signo,
         contenido_preferido: formData.contenidoPreferido,
-        whatsapp: waE164,
         pais: 'UY',
         fuente: 'web-vercel-checkout-v2',
         version_politicas: 'v1.0',
-        acepto_politicas: acepta
-
+        acepto_politicas: acepta,
       };
 
-      // --- Llamada a la API Unificada (sin cambios) ---
-      console.log('>>> LLAMANDO A /api/iniciar-checkout con payload:', payload);
+      console.log('[checkout] Payload enviado:', payload);
+
       const response = await fetch('/api/iniciar-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      console.log('/api/iniciar-checkout status:', response.status);
 
       if (!response.ok) {
-        let errorData = { message: 'Hubo un problema al iniciar el proceso.' };
-        try {
-          errorData = await response.json();
-          console.error('Error en /api/iniciar-checkout (respuesta JSON):', errorData);
-        } catch (jsonError) {
-          const errorText = await response.text();
-          console.error('Error en /api/iniciar-checkout (respuesta no JSON):', errorText);
-          errorData.message = errorText || errorData.message || (jsonError as Error).message;
-        }
-        throw new Error(errorData.message);
+        const text = await response.text();
+        throw new Error(text || 'Error iniciando checkout');
       }
 
-      // --- Redirección (sin cambios) ---
       const result = await response.json();
-      const init_point = result?.init_point;
-      console.log('Proceso exitoso con /api/iniciar-checkout, redirigiendo a:', init_point);
 
-      if (init_point) {
-        window.location.href = init_point;
-        // No es necesario setIsLoading(false) aquí
-      } else {
-        console.error("Error crítico: /api/iniciar-checkout OK pero no devolvió init_point. Respuesta:", result);
-        throw new Error('No se recibió la URL de pago de Mercado Pago.');
+      if (!result?.init_point) {
+        throw new Error('No se recibió el link de pago');
       }
+
+      // ---------------- REDIRECCIÓN MP ----------------
+      window.location.href = result.init_point;
     } catch (err: any) {
-      console.error('Error capturado en handleSubmit:', err);
-      setError(err.message || 'Ocurrió un error inesperado. Verifica tus datos e intenta de nuevo.');
+      console.error('[checkout] Error:', err);
+      setError(err.message || 'Error inesperado');
       setIsLoading(false);
-      // Opcional: sessionStorage.removeItem('checkoutData');
     }
   };
 
-
-  // --- RESTO DEL JSX (SIN CAMBIOS) ---
+  // ============================================================
+  // === JSX
+  // ============================================================
   return (
     <div className="mx-auto max-w-6xl">
-      {/* Encabezado Principal */}
       <div className="text-center mb-10">
         <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
           Estás a un paso ✨
@@ -186,11 +222,9 @@ export default function CheckoutContent() {
         </p>
       </div>
 
-      {/* Panel Central Unificado */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 md:p-10 backdrop-blur-sm shadow-xl">
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
-            {/* Columna Izquierda: Formulario */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
             <div className="space-y-6">
               <h2 className="text-xl font-semibold text-white">
                 Completa tus datos
@@ -204,44 +238,32 @@ export default function CheckoutContent() {
               />
             </div>
 
-            {/* Columna Derecha: Resumen y Botón */}
             <div className="space-y-6">
               <h2 className="text-xl font-semibold text-white md:text-center">
                 Tu Suscripción Premium
               </h2>
               <SubscriptionSummary />
 
-              {/* Mensaje de Error */}
               {error && (
-                <p className="mt-4 text-center text-rose-300 text-sm px-4">{error}</p>
+                <p className="text-center text-rose-300 text-sm">
+                  {error}
+                </p>
               )}
 
-              {/* Botón de Pago Unificado */}
-              <div className="mt-6 mx-auto max-w-xl text-center">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className={`w-full px-8 py-4 rounded-xl text-lg font-bold transition-all duration-300 ease-in-out flex items-center justify-center ${
-                    isLoading
-                    ? 'bg-purple-400/50 text-white/70 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-amber-400 to-pink-400 text-violet-900 shadow-lg hover:from-amber-300 hover:to-pink-300 hover:scale-[1.03] focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:ring-offset-2 focus:ring-offset-black/50 disabled:opacity-60'
-                  }`}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Conectando con Mercado Pago...
-                    </>
-                  ) : (
-                    'Confirmar y pagar $U 390'
-                  )}
-                </button>
-                {!isLoading && (
-                  <p className="text-white/55 text-xs mt-3 px-4">
-                    Serás redirigido a Mercado Pago para finalizar de forma segura.
-                  </p>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full px-8 py-4 rounded-xl text-lg font-bold bg-gradient-to-r from-amber-400 to-pink-400 text-violet-900"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="inline mr-2 animate-spin" />
+                    Conectando con Mercado Pago...
+                  </>
+                ) : (
+                  'Confirmar y pagar $U 390'
                 )}
-              </div>
+              </button>
             </div>
           </div>
         </form>
@@ -249,4 +271,3 @@ export default function CheckoutContent() {
     </div>
   );
 }
-
