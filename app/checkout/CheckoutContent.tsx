@@ -141,7 +141,7 @@ export default function CheckoutContent() {
     const whatsappRegex = /^09\d{7}$/;
     if (!whatsappRegex.test(formData.whatsapp)) {
       setError(
-        'El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099863263).'
+        'El número de WhatsApp debe comenzar con 09 y tener 9 dígitos (ej: 099123456).'
       );
       return;
     }
