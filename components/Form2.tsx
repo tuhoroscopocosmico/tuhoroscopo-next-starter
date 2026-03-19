@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 const signos = ['Aries','Tauro','Géminis','Cáncer','Leo','Virgo','Libra','Escorpio','Sagitario','Capricornio','Acuario','Piscis']
 const preferencias = [
-  { value: 'general', label: 'General (un poco de todo)' },
+  { value: 'general', label: 'General' },
   { value: 'amor', label: 'Amor & vínculos' },
   { value: 'dinero', label: 'Dinero & carrera' },
   { value: 'bienestar', label: 'Bienestar & energía' },
