@@ -46,7 +46,7 @@ const signos = [
 ];
 // *** CORRECCIÓN AQUÍ: Restauramos emojis en las labels ***
 const preferencias = [
-  { value: 'general', label: '🧠 General (equilibrio diario)' },
+  { value: 'general', label: '🧠 General' },
   { value: 'trabajo y dinero', label: '💼 Trabajo y dinero' },
   { value: 'amor', label: '❤️ Relaciones' },
   { value: 'bienestar', label: '🧘 Bienestar mental' },
