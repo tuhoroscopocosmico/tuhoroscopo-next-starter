@@ -106,7 +106,7 @@ export default function LeadFormFields({
 
        {/* Contenido Preferido */}
        <div className="relative">
-           <label htmlFor="contenidoPreferido" className="block text-sm text-white/80 mb-1">Contenido preferido</label>
+           <label htmlFor="contenidoPreferido" className="block text-sm text-white/80 mb-1">¿En qué querés enfocarte?</label>
             {/* Eliminamos el ícono Bot posicionado absolutamente */}
            {/* <Bot className="absolute left-3 top-9 h-5 w-5 text-white/50 pointer-events-none z-10" /> */}
            <select
