@@ -140,7 +140,7 @@ export default function LeadFormFields({
           // Aplica clases base + padding izquierdo mayor + padding derecho estándar
           className={`${inputBaseClasses} pl-[85px] pr-4`} // Ajusta pl-[85px] si es necesario
         />
-        <p className="mt-1 text-xs text-white/60">Recibirás los mensajes premium en este número.</p>
+        <p className="mt-1 text-xs text-white/60">Te vamos a escribir acá.</p>
       </div>
     </div>
   );

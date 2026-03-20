@@ -77,7 +77,7 @@ export default function Formulario() {
         </select>
       </div>
       <div>
-        <label className="label">Número de WhatsApp</label>
+        <label className="label">¿A qué número querés recibir tus mensajes?</label>
         <div className="flex items-center bg-violet-900/60 rounded-lg overflow-hidden">
           <span className="pl-3 pr-2 text-lg">🇺🇾</span>
           <input
@@ -94,7 +94,7 @@ export default function Formulario() {
       <div className="flex items-center gap-2">
         <input id="acepta" type="checkbox" checked={acepta} onChange={() => setAcepta(!acepta)} />
         <label htmlFor="acepta" className="text-sm text-white/80">
-          Acepto la <a className="underline" href="/politica" target="_blank" rel="noreferrer">Política de Privacidad</a>.
+        <a className="underline" href="/politica" target="_blank" rel="noreferrer">Acepto la Política de Privacidad y los Términos</a>.
         </label>
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}

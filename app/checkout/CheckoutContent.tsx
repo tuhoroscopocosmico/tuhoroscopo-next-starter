@@ -258,7 +258,7 @@ export default function CheckoutContent() {
                 {isLoading ? (
                   <>
                     <Loader2 className="inline mr-2 animate-spin" />
-                    Conectando con Mercado Pago...
+                    Registrando tu cueta y conectando con Mercado Pago...
                   </>
                 ) : (
                   'Activar Premium — $U 390/mes'

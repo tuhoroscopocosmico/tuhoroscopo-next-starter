@@ -91,8 +91,7 @@ export default function PlanesPage() {
             $U 390<span className="text-base font-semibold">/mes</span>
           </div>
           <ul className="text-white/80 text-sm space-y-1 mb-6">
-            <li>Pagás el primer mes ahora.</li>
-            <li>Queda la renovación automática (cancelás cuando quieras).</li>
+            <li>Empezás hoy. Cancelás cuando quieras.</li>
             <li>Recibí tu primer mensaje en minutos.</li>
           </ul>
 
@@ -101,7 +100,7 @@ export default function PlanesPage() {
           </button>
 
           <p className="text-white/50 text-xs mt-3">
-            Serás redirigido a Mercado Pago para pagar el primer mes de forma segura.
+            Serás redirigido a Mercado Pago, para que realices tu pago de forma segura.
           </p>
         </div>
 
