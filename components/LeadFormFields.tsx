@@ -162,14 +162,14 @@ export default function LeadFormFields({
                 className="mt-1 accent-pink-400"
             />
             <span>
-                Acepto la{' '}
+                {' '}
                 <a
                  className="underline hover:text-pink-300"
                  href="/politica-de-privacidad"
                  target="_blank"
                  rel="noreferrer"
                 >
-                 Política de Privacidad
+                 Acepto la Política de Privacidad y los Términos
                 </a>.
             </span>
         </label>
