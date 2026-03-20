@@ -22,8 +22,7 @@ export default function SubscriptionSummary() {
               <span className="text-white/80 font-semibold ml-1">/mes</span>
             </div>
             <ul className="text-white/80 text-sm space-y-1 mb-6">
-              <li>Pagás mes a mes, sin ataduras.</li>
-              <li>Renovación automática. Cancelás cuando quieras.</li>
+              <li>Empezás hoy. Cancelás cuando quieras.</li>
               <li>Recibí tu primer mensaje en minutos.</li>
             </ul>
             {/* El botón de pago ahora vive en CheckoutContent.tsx */}
