@@ -215,7 +215,7 @@ export default function CheckoutContent() {
     <div className="mx-auto max-w-6xl">
       <div className="text-center mb-10">
         <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-          Estás a un paso ✨
+          Activá tu suscripción ✨
         </h1>
         <p className="text-white/70">
           Completa tus datos y confirma tu suscripción premium.
@@ -261,7 +261,7 @@ export default function CheckoutContent() {
                     Conectando con Mercado Pago...
                   </>
                 ) : (
-                  'Confirmar y pagar $U 390'
+                  'Activar Premium — $U 390/mes'
                 )}
               </button>
             </div>
